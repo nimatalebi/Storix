@@ -11,6 +11,8 @@
     <DefineConstants>ProductVersion=$(ProductVersion)</DefineConstants>
     <!-- WIX1149: MsiServiceConfig is only used for delayed auto-start, which works on all supported Windows versions. -->
     <SuppressSpecificWarnings>1149</SuppressSpecificWarnings>
+    <!-- ICE38/43/57 assume per-user shortcuts; this is a per-machine package using the all-users Start menu. -->
+    <SuppressIces>ICE38;ICE43;ICE57</SuppressIces>
     <!-- Keep central package management out of the WiX project. -->
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <EnableWindowsTargeting>false</EnableWindowsTargeting>
