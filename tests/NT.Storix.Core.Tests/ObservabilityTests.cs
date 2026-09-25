@@ -48,7 +48,8 @@ public class ObservabilityTests
 
         lock (activities)
         {
-            var backup = activities.Single(a => a.OperationName == "backup" && (string?)a.GetTagItem("storix.job") == "Restore me");
+            // Other tests back up jobs with the same name in parallel: match this run's job id.
+            var backup = activities.Single(a => a.OperationName == "backup" && (string?)a.GetTagItem("storix.job_id") == run.JobId.ToString());
             Assert.Equal("Succeeded", backup.GetTagItem("storix.status"));
             Assert.Contains(activities, a => a.OperationName == "upload" && a.Parent?.Id == backup.Id);
         }
