@@ -21,6 +21,7 @@ internal sealed class WelcomeForm : Form
 
     public WelcomeForm(bool serviceInstalled)
     {
+        Localizer.Attach(this);
         Text = "Welcome to Storix";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;

@@ -12,6 +12,7 @@ internal sealed class ChannelEditorForm : Form
 
     public ChannelEditorForm(NotificationChannel channel)
     {
+        Localizer.Attach(this);
         Channel = StorixJson.Clone(channel);
         Text = "Notification channel";
         StartPosition = FormStartPosition.CenterParent;

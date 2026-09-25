@@ -16,6 +16,7 @@ internal sealed class DecryptForm : Form
 
     public DecryptForm()
     {
+        Localizer.Attach(this);
         Text = "Decrypt backup";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;

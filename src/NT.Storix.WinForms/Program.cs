@@ -9,6 +9,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        Localizer.Initialize(UiPreferences.Load());
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Dialogs.Error(null, e.Exception.Message);
 

@@ -36,6 +36,8 @@ internal sealed class MainForm : Form
     private readonly TextBox _otlpEndpoint = new() { PlaceholderText = "http://otel-collector:4317" };
     private readonly CheckBox _checkUpdates = new() { Text = "Check for new versions on GitHub once a day", AutoSize = true };
     private readonly CheckBox _prereleaseUpdates = new() { Text = "Include pre-release versions", AutoSize = true };
+    private readonly ComboBox _uiLanguage = Ui.EnumCombo(UiLanguage.Auto);
+    private readonly ComboBox _uiTheme = Ui.EnumCombo(UiTheme.System);
     private readonly ToolStripStatusLabel _updateStatus = new() { IsLink = true, Visible = false };
     private Core.Updates.ReleaseInfo? _availableUpdate;
     private readonly CheckBox _smtpEnabled = new() { Text = "Enable e-mail notifications", AutoSize = true };
@@ -58,6 +60,7 @@ internal sealed class MainForm : Form
 
     public MainForm(AppServices services, bool startInTray = false)
     {
+        Localizer.Attach(this);
         _services = services;
         _startInTray = startInTray;
         _tray = new TrayIcon(this, services);
@@ -835,6 +838,10 @@ internal sealed class MainForm : Form
         grid.Row(null, new Label { Text = "Updates", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         grid.Row(null, _checkUpdates);
         grid.Row(null, _prereleaseUpdates);
+        grid.Row(null, new Label { Text = "Appearance", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        grid.Row("Language", _uiLanguage);
+        grid.Row("Theme", _uiTheme);
+        grid.Row(null, new Label { Text = "Restart Storix Manager to apply language and theme changes.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Row(null, Ui.Buttons(Ui.Button("Save settings", (_, _) => SaveSettings(), 130)));
         grid.Row(null, new Label { Text = "Restart the service to apply engine changes.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
@@ -867,6 +874,9 @@ internal sealed class MainForm : Form
         _otlpEndpoint.Text = settings.Observability.OtlpEndpoint;
         _checkUpdates.Checked = settings.CheckForUpdates;
         _prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
+        var preferences = UiPreferences.Load();
+        _uiLanguage.SelectedItem = preferences.Language;
+        _uiTheme.SelectedItem = preferences.Theme;
         RefreshChannels();
     }
 
@@ -974,6 +984,7 @@ internal sealed class MainForm : Form
         };
         settings.CheckForUpdates = _checkUpdates.Checked;
         settings.IncludePrereleaseUpdates = _prereleaseUpdates.Checked;
+        new UiPreferences { Language = (UiLanguage)_uiLanguage.SelectedItem!, Theme = (UiTheme)_uiTheme.SelectedItem! }.Save();
         settings.Observability = new ObservabilitySettings
         {
             MetricsEnabled = _metricsEnabled.Checked,

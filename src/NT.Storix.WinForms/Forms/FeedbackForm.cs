@@ -19,6 +19,7 @@ internal sealed class FeedbackForm : Form
 
     public FeedbackForm()
     {
+        Localizer.Attach(this);
         Text = "Send feedback";
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;

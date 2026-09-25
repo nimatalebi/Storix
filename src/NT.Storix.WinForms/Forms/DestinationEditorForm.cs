@@ -20,6 +20,7 @@ internal sealed class DestinationEditorForm : Form
 
     public DestinationEditorForm(DestinationDefinition destination, IDestinationFactory factory)
     {
+        Localizer.Attach(this);
         _factory = factory;
         Destination = StorixJson.Clone(destination);
 

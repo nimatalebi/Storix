@@ -82,7 +82,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Weekly summary e-mail (and chat channels)
 - [x] Dashboard: storage per destination, growth trend, forecast, success rate
 - [x] Prometheus metrics, Windows Event Log entries, OpenTelemetry
-- [ ] Persian (RTL) and English UI, dark mode
+- [x] Persian (RTL) and English UI, dark mode (remaining: translate the longer help texts and messages)
 - [x] Job templates and dry-run mode
 - [x] First-run wizard
 

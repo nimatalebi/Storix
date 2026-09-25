@@ -42,6 +42,7 @@ internal sealed class RestoreForm : Form
         NT.Storix.Core.Persistence.AuditRepository? audit = null,
         Func<string, bool>? confirm = null)
     {
+        Localizer.Attach(this);
         _jobs = jobs;
         _audit = audit;
         _confirm = confirm ?? (_ => true);

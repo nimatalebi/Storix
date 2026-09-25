@@ -103,6 +103,7 @@ internal sealed class JobEditorForm : Form
 
     public JobEditorForm(BackupJob job, IDestinationFactory destinationFactory, IReadOnlyList<BackupJob>? otherJobs = null)
     {
+        Localizer.Attach(this);
         _destinationFactory = destinationFactory;
         Job = StorixJson.Clone(job);
         _otherJobs = (otherJobs ?? []).Where(j => j.Id != job.Id).ToList();

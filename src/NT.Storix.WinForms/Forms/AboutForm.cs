@@ -8,6 +8,7 @@ internal sealed class AboutForm : Form
 {
     public AboutForm()
     {
+        Localizer.Attach(this);
         Text = "About Storix";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;

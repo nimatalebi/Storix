@@ -11,6 +11,7 @@ internal sealed class PassphraseDialog : Form
 
     public PassphraseDialog(string title, string message, bool requireConfirmation)
     {
+        Localizer.Attach(this);
         _requireConfirmation = requireConfirmation;
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;

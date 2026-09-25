@@ -20,6 +20,7 @@ internal sealed class DatabaseRestoreForm : Form
 
     public DatabaseRestoreForm(string folder, SourceDefinition? source)
     {
+        Localizer.Attach(this);
         _source = source;
         Text = "Restore database";
         StartPosition = FormStartPosition.CenterParent;

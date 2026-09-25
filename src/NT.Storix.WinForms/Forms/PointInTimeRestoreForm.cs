@@ -29,6 +29,7 @@ internal sealed class PointInTimeRestoreForm : Form
 
     public PointInTimeRestoreForm(SqlBackupRepository sqlBackups, JobRepository jobs, IDestinationFactory destinations)
     {
+        Localizer.Attach(this);
         _sqlBackups = sqlBackups;
         _jobs = jobs;
         _destinations = destinations;

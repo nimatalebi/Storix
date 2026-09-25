@@ -15,6 +15,7 @@ internal sealed class ServiceAccountForm : Form
 
     public ServiceAccountForm()
     {
+        Localizer.Attach(this);
         Text = "Service account";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;

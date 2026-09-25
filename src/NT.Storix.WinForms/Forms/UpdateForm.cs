@@ -15,6 +15,7 @@ internal sealed class UpdateForm : Form
 
     public UpdateForm(ReleaseInfo release)
     {
+        Localizer.Attach(this);
         _release = release;
         Text = "Storix update";
         StartPosition = FormStartPosition.CenterParent;

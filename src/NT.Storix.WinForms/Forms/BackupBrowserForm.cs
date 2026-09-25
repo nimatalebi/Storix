@@ -16,6 +16,7 @@ internal sealed class BackupBrowserForm : Form
 
     public BackupBrowserForm(BackupIndex index)
     {
+        Localizer.Attach(this);
         _index = index;
         Text = $"Files in {index.Archive}";
         StartPosition = FormStartPosition.CenterParent;
