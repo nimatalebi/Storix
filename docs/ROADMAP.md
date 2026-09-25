@@ -38,9 +38,10 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] SQL Server differential and log backups with chain tracking; point-in-time restore
 - [x] Direct database restore from the UI (`RESTORE ... WITH MOVE`, `mongorestore`)
 - [ ] Bandwidth limit, allowed upload windows, pause on metered connections
-- [ ] Pre/post job hooks (PowerShell/cmd) with timeout and exit-code handling
-- [ ] Cancel or pause a running job from the UI
-- [ ] Free-space check that fails early, with an estimate
+- [x] Pre/post job hooks (PowerShell/cmd) with timeout and exit-code handling
+- [x] Cancel a running job from the UI
+- [ ] Pause and resume a running job
+- [x] Free-space check that fails early, with an estimate (staging and local destinations)
 - [ ] GFS retention (daily/weekly/monthly/yearly)
 - [ ] Key management: printable recovery sheet, optional key file
 

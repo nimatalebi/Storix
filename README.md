@@ -62,6 +62,8 @@ Backup Agent
 | **Database consistency** | SQL Server: `BACKUP DATABASE … WITH COPY_ONLY, CHECKSUM`, so your existing backup chain is left intact. MongoDB: optional `--oplog` for a point-in-time dump of a replica set. |
 | **Backup verification** | Optional `RESTORE VERIFYONLY`. Every archive can be re-read (and decrypted) before upload. The size of each uploaded file is checked. |
 | **Notifications & monitoring** | E-mail, webhooks (JSON, HMAC-signed), Telegram, Bale, Slack, Teams and Discord. A dead man's switch alerts when a job has no successful backup for N hours. healthchecks.io and Uptime Kuma pings are supported. |
+| **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
+| **Control** | Run now, cancel a running backup, and an early free-space check based on the previous backup size. |
 | **Import / export configs** | Export all jobs and settings to JSON. Secrets are either removed or protected with a passphrase (AES-256-GCM). |
 
 ### V1 scope

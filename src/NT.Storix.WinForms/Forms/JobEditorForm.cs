@@ -70,6 +70,12 @@ internal sealed class JobEditorForm : Form
     private readonly NumericUpDown _staleHours = Ui.Number(0, 24 * 90);
     private readonly TextBox _healthUrl = new();
 
+    // Hooks
+    private readonly TextBox _preCommand = Ui.Multiline(60);
+    private readonly TextBox _postCommand = Ui.Multiline(60);
+    private readonly NumericUpDown _hookTimeout = Ui.Number(1, 86_400, 300);
+    private readonly CheckBox _abortOnPre = new() { Text = "Fail the backup when the pre-command fails", AutoSize = true };
+
     public JobEditorForm(BackupJob job, IDestinationFactory destinationFactory)
     {
         _destinationFactory = destinationFactory;
@@ -97,6 +103,7 @@ internal sealed class JobEditorForm : Form
         tabs.TabPages.Add(Page("Destinations", BuildDestinationsTab()));
         tabs.TabPages.Add(Page("Retention & Retry", BuildPoliciesTab()));
         tabs.TabPages.Add(Page("Notifications", BuildNotificationsTab()));
+        tabs.TabPages.Add(Page("Hooks", BuildHooksTab()));
 
         var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 28 };
@@ -347,6 +354,26 @@ internal sealed class JobEditorForm : Form
         return grid;
     }
 
+    private Control BuildHooksTab()
+    {
+        var grid = Ui.Form();
+        grid.Row(null, new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(660, 0),
+            Text = "Commands run by the service (cmd.exe) before and after the backup, e.g. to stop an IIS app pool: " +
+                   "%windir%\\system32\\inetsrv\\appcmd stop apppool /apppool.name:MySite. " +
+                   "Available variables: STORIX_JOB_NAME, STORIX_JOB_ID, STORIX_RUN_ID, STORIX_TRIGGER, and after the backup STORIX_STATUS, STORIX_FILE, STORIX_MESSAGE.",
+        });
+        grid.Row("Before backup", _preCommand);
+        grid.Row("After backup", _postCommand);
+        grid.Row("Timeout (seconds)", _hookTimeout);
+        grid.Row(null, _abortOnPre);
+        grid.Row(null, new Label { Text = "PowerShell: powershell -NoProfile -ExecutionPolicy Bypass -File C:\\scripts\\before.ps1", AutoSize = true, ForeColor = SystemColors.GrayText });
+        grid.Fill();
+        return grid;
+    }
+
     private void LoadJob()
     {
         _name.Text = Job.Name;
@@ -402,6 +429,10 @@ internal sealed class JobEditorForm : Form
         _notifyEmail.Text = Job.Notifications.EmailTo;
         _staleHours.Value = Math.Clamp(Job.Notifications.AlertIfNoSuccessForHours, 0, 24 * 90);
         _healthUrl.Text = Job.Notifications.HealthCheckUrl;
+        _preCommand.Text = Job.Hooks.PreCommand;
+        _postCommand.Text = Job.Hooks.PostCommand;
+        _hookTimeout.Value = Math.Clamp(Job.Hooks.TimeoutSeconds, 1, 86_400);
+        _abortOnPre.Checked = Job.Hooks.AbortOnPreCommandFailure;
 
         RefreshDestinations();
         ShowSourcePanel();
@@ -451,6 +482,10 @@ internal sealed class JobEditorForm : Form
         Job.Notifications.EmailTo = NullIfEmpty(_notifyEmail.Text);
         Job.Notifications.AlertIfNoSuccessForHours = (int)_staleHours.Value;
         Job.Notifications.HealthCheckUrl = NullIfEmpty(_healthUrl.Text);
+        Job.Hooks.PreCommand = NullIfEmpty(_preCommand.Text);
+        Job.Hooks.PostCommand = NullIfEmpty(_postCommand.Text);
+        Job.Hooks.TimeoutSeconds = (int)_hookTimeout.Value;
+        Job.Hooks.AbortOnPreCommandFailure = _abortOnPre.Checked;
     }
 
     private void ApplySchedule(ScheduleDefinition schedule)

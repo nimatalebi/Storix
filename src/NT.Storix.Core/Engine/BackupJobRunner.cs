@@ -41,6 +41,16 @@ public sealed class BackupJobRunner(
             Directory.CreateDirectory(staging);
             log.Info($"Backup started ({trigger}). Source: {job.Source.Kind}.");
 
+            // 0. Pre-command (e.g. stop an application so its files are consistent).
+            if (!string.IsNullOrWhiteSpace(job.Hooks.PreCommand))
+            {
+                var pre = await RunHookAsync(job, run, "Pre-command", job.Hooks.PreCommand, log, cancellationToken);
+                if (!pre.Succeeded && job.Hooks.AbortOnPreCommandFailure)
+                {
+                    throw new InvalidOperationException(pre.TimedOut ? "The pre-command timed out." : $"The pre-command failed with exit code {pre.ExitCode}.");
+                }
+            }
+
             // 1. Source (database dumps are retried, e.g. when the server is busy).
             var source = sourceFactory.Create(job.Source);
             snapshot = await RetryExecutor.ExecuteAsync(
@@ -50,6 +60,10 @@ public sealed class BackupJobRunner(
             {
                 throw new InvalidOperationException("Nothing to back up: the source produced no files.");
             }
+
+            // Fail early when the staging disk is obviously too small.
+            var previousSize = runs.GetRecent(job.Id, 10).FirstOrDefault(r => r.Status == RunStatus.Succeeded && r.SizeBytes > 0)?.SizeBytes;
+            FreeSpace.Ensure(staging, FreeSpace.EstimateStagingBytes(snapshot.Entries, previousSize, job.Processing.Encrypt), "the staging folder");
 
             // 2. Compression.
             var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false));
@@ -124,6 +138,22 @@ public sealed class BackupJobRunner(
         }
         finally
         {
+            if (!string.IsNullOrWhiteSpace(job.Hooks.PostCommand))
+            {
+                try
+                {
+                    var post = await RunHookAsync(job, run, "Post-command", job.Hooks.PostCommand, log, CancellationToken.None);
+                    if (!post.Succeeded)
+                    {
+                        log.Warn(post.TimedOut ? "The post-command timed out." : $"The post-command failed with exit code {post.ExitCode}.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log.Warn($"The post-command could not be started: {ex.Message}");
+                }
+            }
+
             Cleanup(snapshot, staging, log);
             run.FinishedAt = DateTimeOffset.UtcNow;
             log.Info($"Finished with status {run.Status} in {run.Duration:hh\\:mm\\:ss}.");
@@ -140,6 +170,30 @@ public sealed class BackupJobRunner(
         }
 
         return run;
+    }
+
+    private static async Task<HookResult> RunHookAsync(BackupJob job, BackupRun run, string name, string command, RunLog log, CancellationToken cancellationToken)
+    {
+        log.Info($"{name} started.");
+        var environment = new Dictionary<string, string?>
+        {
+            ["STORIX_JOB_ID"] = job.Id.ToString(),
+            ["STORIX_JOB_NAME"] = job.Name,
+            ["STORIX_RUN_ID"] = run.Id.ToString(),
+            ["STORIX_TRIGGER"] = run.Trigger.ToString(),
+            ["STORIX_STATUS"] = run.Status.ToString(),
+            ["STORIX_FILE"] = run.FileName,
+            ["STORIX_MESSAGE"] = run.Message,
+        };
+
+        var result = await HookRunner.RunAsync(command, environment, TimeSpan.FromSeconds(Math.Max(1, job.Hooks.TimeoutSeconds)), cancellationToken);
+        if (result.Output.Length > 0)
+        {
+            log.Info($"{name} output:{Environment.NewLine}{result.Output}");
+        }
+
+        log.Info($"{name} finished with exit code {result.ExitCode}{(result.TimedOut ? " (timed out)" : string.Empty)}.");
+        return result;
     }
 
     /// <summary>Delivers a notification through every notifier; failures are logged, never thrown.</summary>

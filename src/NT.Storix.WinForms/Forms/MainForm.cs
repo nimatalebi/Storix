@@ -139,6 +139,7 @@ internal sealed class MainForm : Form
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Enable / Disable", null, (_, _) => ToggleJob()));
         toolbar.Items.Add(new ToolStripButton("Run now", null, (_, _) => RunNow()));
+        toolbar.Items.Add(new ToolStripButton("Cancel run", null, (_, _) => CancelRun()));
         toolbar.Items.Add(new ToolStripButton("Restore...", null, (_, _) => OpenRestore()));
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Refresh", null, (_, _) => RefreshJobs()));
@@ -279,6 +280,26 @@ internal sealed class MainForm : Form
         else
         {
             Dialogs.Info(this, $"'{job.Name}' was queued and will start within a few seconds. Follow it in the History tab.");
+        }
+    }
+
+    private void CancelRun()
+    {
+        if (SelectedJob is not { } job)
+        {
+            return;
+        }
+
+        if (_services.Runs.GetLast(job.Id)?.Status != RunStatus.Running)
+        {
+            Dialogs.Info(this, $"'{job.Name}' is not running.");
+            return;
+        }
+
+        if (Dialogs.Confirm(this, $"Cancel the running backup of '{job.Name}'?"))
+        {
+            _services.Runs.RequestCancel(job.Id);
+            Dialogs.Info(this, "Cancellation requested. The service stops the backup within a few seconds.");
         }
     }
 

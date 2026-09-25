@@ -25,15 +25,14 @@ public sealed class BackupScheduler(
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(10);
 
     private readonly ConcurrentDictionary<Guid, Task> _running = new();
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _cancellation = new();
     private SemaphoreSlim _slots = new(1);
 
     public IReadOnlyCollection<Guid> RunningJobs => _running.Keys.ToList();
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
-        var appSettings = settings.Get();
-        _slots = new SemaphoreSlim(Math.Max(1, appSettings.MaxConcurrentJobs));
-        Recover(appSettings);
+        var appSettings = await PrepareAsync();
 
         logger.LogInformation("Scheduler started (max {Concurrency} concurrent job(s)).", appSettings.MaxConcurrentJobs);
 
@@ -85,9 +84,27 @@ public sealed class BackupScheduler(
         logger.LogInformation("Scheduler stopped.");
     }
 
+    /// <summary>Loads settings, sizes the concurrency limit and performs crash recovery.</summary>
+    internal Task<AppSettings> PrepareAsync()
+    {
+        var appSettings = settings.Get();
+        _slots = new SemaphoreSlim(Math.Max(1, appSettings.MaxConcurrentJobs));
+        Recover(appSettings);
+        return Task.FromResult(appSettings);
+    }
+
     /// <summary>Starts every job due in (<paramref name="fromUtc"/>, <paramref name="nowUtc"/>] and every requested job.</summary>
     internal void Tick(DateTimeOffset fromUtc, DateTimeOffset nowUtc, CancellationToken cancellationToken)
     {
+        foreach (var jobId in runs.DequeueCancelRequests())
+        {
+            if (_cancellation.TryGetValue(jobId, out var source))
+            {
+                logger.LogInformation("Cancelling the running backup of job {JobId} on request.", jobId);
+                source.Cancel();
+            }
+        }
+
         var requested = runs.DequeueRunRequests().ToHashSet();
 
         foreach (var job in jobs.GetAll())
@@ -127,14 +144,17 @@ public sealed class BackupScheduler(
             return;
         }
 
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _cancellation[job.Id] = cancellation;
+
         _ = Task.Run(async () =>
         {
             var acquired = false;
             try
             {
-                await _slots.WaitAsync(cancellationToken);
+                await _slots.WaitAsync(cancellation.Token);
                 acquired = true;
-                await runner.RunAsync(job, trigger, cancellationToken);
+                await runner.RunAsync(job, trigger, cancellation.Token);
             }
             catch (OperationCanceledException)
             {
@@ -151,6 +171,8 @@ public sealed class BackupScheduler(
                 }
 
                 _running.TryRemove(job.Id, out _);
+                _cancellation.TryRemove(job.Id, out _);
+                cancellation.Dispose();
                 completion.TrySetResult();
             }
         }, CancellationToken.None);

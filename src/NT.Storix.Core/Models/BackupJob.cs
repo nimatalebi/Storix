@@ -27,6 +27,8 @@ public sealed class BackupJob
 
     public NotificationOptions Notifications { get; set; } = new();
 
+    public JobHooks Hooks { get; set; } = new();
+
     /// <summary>
     /// File-name friendly identifier used as the prefix of every archive produced by this job.
     /// </summary>

@@ -81,6 +81,11 @@ public sealed class StorixDatabase
             CREATE INDEX IF NOT EXISTS ix_runs_job_started ON runs (job_id, started_at DESC);
             CREATE INDEX IF NOT EXISTS ix_runs_started ON runs (started_at DESC);
 
+            CREATE TABLE IF NOT EXISTS cancel_requests (
+                job_id        TEXT PRIMARY KEY,
+                requested_at  TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS run_requests (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id        TEXT NOT NULL,

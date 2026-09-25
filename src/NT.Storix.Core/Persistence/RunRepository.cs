@@ -156,6 +156,39 @@ public sealed class RunRepository(StorixDatabase database)
         return ids;
     }
 
+    /// <summary>Asks the service to cancel the running backup of a job.</summary>
+    public void RequestCancel(Guid jobId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO cancel_requests (job_id, requested_at) VALUES ($job, $now) ON CONFLICT(job_id) DO UPDATE SET requested_at = excluded.requested_at";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<Guid> DequeueCancelRequests()
+    {
+        using var connection = database.Open();
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT job_id FROM cancel_requests";
+        var ids = new List<Guid>();
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ids.Add(Guid.Parse(reader.GetString(0)));
+            }
+        }
+
+        command.CommandText = "DELETE FROM cancel_requests";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+        return ids;
+    }
+
     private static BackupRun Read(SqliteDataReader reader) => new()
     {
         Id = Guid.Parse(reader.GetString(0)),

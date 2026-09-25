@@ -50,6 +50,7 @@ public sealed class LocalFolderDestination(LocalFolderOptions options) : IBackup
                 existing = 0;
             }
 
+            Engine.FreeSpace.Ensure(Root, input.Length - existing, "the destination folder");
             await using var output = new FileStream(partial, existing > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
             input.Position = existing;
 
