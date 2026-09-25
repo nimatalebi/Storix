@@ -67,7 +67,7 @@ Backup Agent
 | **Notifications & monitoring** | E-mail, webhooks (JSON, HMAC-signed), Telegram, Bale, Slack, Teams and Discord. A dead man's switch alerts when a job has no successful backup for N hours. healthchecks.io and Uptime Kuma pings are supported. |
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
-| **Control** | Run now, cancel a running backup, and an early free-space check based on the previous backup size. |
+| **Control** | Run now, pause/resume or cancel a running backup, hold uploads on metered connections, and an early free-space check based on the previous backup size. |
 | **Restore drills** | Scheduled or on-demand test restores of the latest backup. SQL Server backups are restored into a temporary database and checked with `DBCC CHECKDB`; MongoDB dumps are validated with `mongorestore --dryRun`. |
 | **Import / export configs** | Export all jobs and settings to JSON. Secrets are either removed or protected with a passphrase (AES-256-GCM). |
 

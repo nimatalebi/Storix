@@ -25,6 +25,7 @@ internal sealed class MainForm : Form
     private readonly NumericUpDown _maxConcurrent = Ui.Number(1, 16);
     private readonly TextBox _staging = new();
     private readonly NumericUpDown _historyDays = Ui.Number(0, 36_500);
+    private readonly CheckBox _pauseMetered = new() { Text = "Hold uploads while the internet connection is metered", AutoSize = true };
     private readonly CheckBox _smtpEnabled = new() { Text = "Enable e-mail notifications", AutoSize = true };
     private readonly TextBox _smtpHost = new();
     private readonly NumericUpDown _smtpPort = Ui.Number(1, 65_535, 587);
@@ -144,6 +145,7 @@ internal sealed class MainForm : Form
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Enable / Disable", null, (_, _) => ToggleJob()));
         toolbar.Items.Add(new ToolStripButton("Run now", null, (_, _) => RunNow()));
+        toolbar.Items.Add(new ToolStripButton("Pause / Resume", null, (_, _) => TogglePause()));
         toolbar.Items.Add(new ToolStripButton("Cancel run", null, (_, _) => CancelRun()));
         toolbar.Items.Add(new ToolStripButton("Test restore", null, (_, _) => RequestDrill()));
         toolbar.Items.Add(new ToolStripButton("Restore...", null, (_, _) => OpenRestore()));
@@ -187,7 +189,7 @@ internal sealed class MainForm : Form
                 string.Join(", ", job.Destinations.Where(d => d.Enabled).Select(d => d.Name)),
                 next?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-",
                 last?.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-",
-                last?.Status.ToString() ?? "-",
+                (_services.Runs.IsPaused(job.Id) ? "Paused / " : string.Empty) + (last?.Status.ToString() ?? "-"),
             ])
             {
                 Tag = job,
@@ -300,6 +302,21 @@ internal sealed class MainForm : Form
         Dialogs.Info(this, WindowsServiceManager.GetStatus() == ServiceControllerStatus.Running
             ? $"A restore drill of '{job.Name}' was queued. The result appears in the History tab."
             : "The restore drill was queued, but the Storix service is not running.");
+    }
+
+    private void TogglePause()
+    {
+        if (SelectedJob is not { } job)
+        {
+            return;
+        }
+
+        var paused = _services.Runs.IsPaused(job.Id);
+        _services.Runs.SetPaused(job.Id, !paused);
+        Dialogs.Info(this, paused
+            ? $"'{job.Name}' resumed."
+            : $"'{job.Name}' is paused. A running backup stops at its next step (before archiving, encrypting or uploading the next volume) until you resume it.");
+        RefreshJobs();
     }
 
     private void CancelRun()
@@ -431,6 +448,7 @@ internal sealed class MainForm : Form
         grid.Row("Max concurrent jobs", _maxConcurrent);
         grid.Row("Staging folder (empty = default)", _staging);
         grid.Row("Keep history (days, 0 = forever)", _historyDays);
+        grid.Row(null, _pauseMetered);
         grid.Row(null, new Label { Text = "SMTP (e-mail notifications)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         grid.Row(null, _smtpEnabled);
         grid.Row("Host", _smtpHost);
@@ -463,6 +481,7 @@ internal sealed class MainForm : Form
         _maxConcurrent.Value = Math.Clamp(settings.MaxConcurrentJobs, 1, 16);
         _staging.Text = settings.StagingDirectory;
         _historyDays.Value = Math.Clamp(settings.HistoryRetentionDays, 0, 36_500);
+        _pauseMetered.Checked = settings.PauseOnMeteredConnection;
         _smtpEnabled.Checked = settings.Smtp.Enabled;
         _smtpHost.Text = settings.Smtp.Host;
         _smtpPort.Value = Math.Clamp(settings.Smtp.Port, 1, 65_535);
@@ -560,6 +579,7 @@ internal sealed class MainForm : Form
         settings.MaxConcurrentJobs = (int)_maxConcurrent.Value;
         settings.StagingDirectory = string.IsNullOrWhiteSpace(_staging.Text) ? null : _staging.Text.Trim();
         settings.HistoryRetentionDays = (int)_historyDays.Value;
+        settings.PauseOnMeteredConnection = _pauseMetered.Checked;
         settings.Smtp = ReadSmtp();
         settings.Channels = _channelList;
 

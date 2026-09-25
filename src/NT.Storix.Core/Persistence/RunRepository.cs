@@ -156,6 +156,28 @@ public sealed class RunRepository(StorixDatabase database)
         return ids;
     }
 
+    /// <summary>Pauses (or resumes) the running backup of a job at its next checkpoint.</summary>
+    public void SetPaused(Guid jobId, bool paused)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = paused
+            ? "INSERT INTO paused_jobs (job_id, paused_at) VALUES ($job, $now) ON CONFLICT(job_id) DO NOTHING"
+            : "DELETE FROM paused_jobs WHERE job_id = $job";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    public bool IsPaused(Guid jobId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM paused_jobs WHERE job_id = $job";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        return (long)command.ExecuteScalar()! > 0;
+    }
+
     /// <summary>Asks the service to run a restore drill for a job now.</summary>
     public void RequestDrill(Guid jobId) => Enqueue("drill_requests", jobId);
 

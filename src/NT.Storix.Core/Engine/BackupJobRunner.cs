@@ -67,6 +67,8 @@ public sealed class BackupJobRunner(
             var previousSize = runs.GetRecent(job.Id, 10).FirstOrDefault(r => r.Status == RunStatus.Succeeded && r.SizeBytes > 0)?.SizeBytes;
             FreeSpace.Ensure(staging, FreeSpace.EstimateStagingBytes(snapshot.Entries, previousSize, job.Processing.Encrypt), "the staging folder");
 
+            await CheckpointAsync(job, log, uploading: false, cancellationToken);
+
             // 2. Compression.
             var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false));
             var archive = await ArchiveBuilder.CreateAsync(snapshot.Entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
@@ -77,6 +79,8 @@ public sealed class BackupJobRunner(
                 await ArchiveBuilder.VerifyAsync(zipPath, archive.EntryCount, cancellationToken);
                 log.Info("Archive verified.");
             }
+
+            await CheckpointAsync(job, log, uploading: false, cancellationToken);
 
             // 3. Encryption.
             var finalPath = zipPath;
@@ -215,6 +219,49 @@ public sealed class BackupJobRunner(
         }
 
         return run;
+    }
+
+    /// <summary>Poll interval while a run is paused or waiting for an unmetered connection.</summary>
+    internal static TimeSpan PausePollInterval { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Waits while the job is paused from the UI, or (for uploads) while the connection is metered and the
+    /// settings ask to hold uploads.
+    /// </summary>
+    private async Task CheckpointAsync(BackupJob job, RunLog log, bool uploading, CancellationToken cancellationToken)
+    {
+        var announced = false;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? reason = null;
+            if (runs.IsPaused(job.Id))
+            {
+                reason = "paused from the manager";
+            }
+            else if (uploading && settings.Get().PauseOnMeteredConnection && MeteredConnection.IsMetered())
+            {
+                reason = "waiting for an unmetered connection";
+            }
+
+            if (reason is null)
+            {
+                if (announced)
+                {
+                    log.Info("Resumed.");
+                }
+
+                return;
+            }
+
+            if (!announced)
+            {
+                log.Info($"Backup {reason}.");
+                announced = true;
+            }
+
+            await Task.Delay(PausePollInterval, cancellationToken);
+        }
     }
 
     private static async Task<HookResult> RunHookAsync(BackupJob job, BackupRun run, string name, string command, RunLog log, CancellationToken cancellationToken)
@@ -364,6 +411,8 @@ public sealed class BackupJobRunner(
                     skipped++;
                     continue;
                 }
+
+                await CheckpointAsync(job, log, uploading: true, ct);
 
                 await destination.UploadAsync(item.LocalPath, item.RemoteName, progress: null, ct);
             }

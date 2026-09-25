@@ -101,6 +101,11 @@ public sealed class StorixDatabase
             );
             CREATE INDEX IF NOT EXISTS ix_sql_backups_db ON sql_backups (server, database_name, backup_finish);
 
+            CREATE TABLE IF NOT EXISTS paused_jobs (
+                job_id     TEXT PRIMARY KEY,
+                paused_at  TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS drill_requests (
                 job_id        TEXT PRIMARY KEY,
                 requested_at  TEXT NOT NULL

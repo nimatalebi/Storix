@@ -8,6 +8,9 @@ public sealed class AppSettings
     /// <summary>Working folder for temporary archives. Empty means <c>%ProgramData%\Storix\staging</c>.</summary>
     public string? StagingDirectory { get; set; }
 
+    /// <summary>Hold uploads while Windows reports the internet connection as metered.</summary>
+    public bool PauseOnMeteredConnection { get; set; }
+
     /// <summary>Run history older than this many days is removed. 0 keeps everything.</summary>
     public int HistoryRetentionDays { get; set; } = 365;
 
