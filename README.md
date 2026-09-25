@@ -317,6 +317,8 @@ The manager also offers **New from template** (SQL Server nightly to S3, log bac
 
 - Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure.
 - `%ProgramData%\Storix` should be writable by administrators only.
+- **Service → Run as account…** runs the service as Network Service, a dedicated user or a group Managed Service Account (gMSA). Storix grants only *Log on as a service*, Modify on its data folder and, optionally, Backup Operators membership.
+- **Settings → Ask for my Windows password…** requires Windows re-authentication before restores, deletions, exports with secrets and service changes. Failed confirmations are written to the audit log.
 - For FTP, prefer **FTPS**, or better, **SFTP**. Enable *Accept any certificate* only for trusted self-signed servers. For SFTP, set the host key fingerprint.
 - **Dropbox / OneDrive** use OAuth with PKCE: register your own app (Dropbox App Console / Azure app registration, public client) with the redirect URI `http://localhost:53682/`, enter its key/client ID and click **Sign in**. Refresh tokens are stored encrypted.
 - **Google Drive** supports two sign-in modes:

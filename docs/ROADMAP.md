@@ -51,9 +51,9 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ### Security and ransomware protection
 - [x] Asymmetric mode (RSA-4096 public key on the agent, private key offline)
 - [x] Immutable storage (S3 Object Lock); refuse to delete locked sets
-- [ ] Run under a gMSA or a low-privilege account, with a setup wizard
+- [x] Run under a gMSA or a low-privilege account, with a setup wizard
 - [x] Audit log of configuration changes (who, when, what; secrets masked)
-- [ ] Confirmation (TOTP / Windows Hello) before restore or delete
+- [x] Windows password confirmation before restore, delete, export with secrets and service changes
 
 ### Storage efficiency
 - [ ] zstd compression

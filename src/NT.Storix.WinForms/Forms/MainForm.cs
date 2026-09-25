@@ -26,6 +26,7 @@ internal sealed class MainForm : Form
     private readonly NumericUpDown _maxConcurrent = Ui.Number(1, 16);
     private readonly TextBox _staging = new();
     private readonly NumericUpDown _historyDays = Ui.Number(0, 36_500);
+    private readonly CheckBox _requireConfirmation = new() { Text = "Ask for my Windows password before restores, deletions, exports with secrets and service changes", AutoSize = true };
     private readonly CheckBox _pauseMetered = new() { Text = "Hold uploads while the internet connection is metered", AutoSize = true };
     private readonly CheckBox _smtpEnabled = new() { Text = "Enable e-mail notifications", AutoSize = true };
     private readonly TextBox _smtpHost = new();
@@ -306,7 +307,8 @@ internal sealed class MainForm : Form
 
     private void DeleteJob()
     {
-        if (SelectedJob is { } job && Dialogs.Confirm(this, $"Delete job '{job.Name}'?\n\nBackups already stored on destinations are not deleted."))
+        if (SelectedJob is { } job && Dialogs.Confirm(this, $"Delete job '{job.Name}'?\n\nBackups already stored on destinations are not deleted.")
+            && ConfirmSensitive($"Delete the backup job '{job.Name}'."))
         {
             _services.Jobs.Delete(job.Id);
             _services.Audit.Add("job.delete", job.Name, AuditDiff.Describe<BackupJob>(job, null));
@@ -430,7 +432,7 @@ internal sealed class MainForm : Form
 
     private void OpenRestore()
     {
-        using var form = new RestoreForm(_services.Jobs.GetAll(), _services.Destinations, SelectedJob, _services.Audit);
+        using var form = new RestoreForm(_services.Jobs.GetAll(), _services.Destinations, SelectedJob, _services.Audit, ConfirmSensitive);
         form.ShowDialog(this);
     }
 
@@ -528,6 +530,24 @@ internal sealed class MainForm : Form
         public override string ToString() => Name;
     }
 
+    /// <summary>Windows password confirmation for sensitive actions, when enabled in the settings.</summary>
+    private bool ConfirmSensitive(string reason)
+    {
+        if (!_services.Settings.Get().RequireWindowsConfirmation)
+        {
+            return true;
+        }
+
+        if (WindowsConfirmation.Verify(this, reason))
+        {
+            return true;
+        }
+
+        _services.Audit.Add("confirmation.failed", reason);
+        Dialogs.Error(this, "The action was not confirmed.");
+        return false;
+    }
+
     // ---------------------------------------------------------------- Audit
 
     private readonly ListView _audit = new() { View = View.Details, FullRowSelect = true, Dock = DockStyle.Fill };
@@ -574,6 +594,7 @@ internal sealed class MainForm : Form
         grid.Row("Staging folder (empty = default)", _staging);
         grid.Row("Keep history (days, 0 = forever)", _historyDays);
         grid.Row(null, _pauseMetered);
+        grid.Row(null, _requireConfirmation);
         grid.Row(null, new Label { Text = "SMTP (e-mail notifications)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         grid.Row(null, _smtpEnabled);
         grid.Row("Host", _smtpHost);
@@ -607,6 +628,7 @@ internal sealed class MainForm : Form
         _staging.Text = settings.StagingDirectory;
         _historyDays.Value = Math.Clamp(settings.HistoryRetentionDays, 0, 36_500);
         _pauseMetered.Checked = settings.PauseOnMeteredConnection;
+        _requireConfirmation.Checked = settings.RequireWindowsConfirmation;
         _smtpEnabled.Checked = settings.Smtp.Enabled;
         _smtpHost.Text = settings.Smtp.Host;
         _smtpPort.Value = Math.Clamp(settings.Smtp.Port, 1, 65_535);
@@ -705,6 +727,12 @@ internal sealed class MainForm : Form
         settings.StagingDirectory = string.IsNullOrWhiteSpace(_staging.Text) ? null : _staging.Text.Trim();
         settings.HistoryRetentionDays = (int)_historyDays.Value;
         settings.PauseOnMeteredConnection = _pauseMetered.Checked;
+        if (settings.RequireWindowsConfirmation && !_requireConfirmation.Checked && !ConfirmSensitive("Turn off the Windows confirmation for sensitive actions."))
+        {
+            return;
+        }
+
+        settings.RequireWindowsConfirmation = _requireConfirmation.Checked;
         settings.Smtp = ReadSmtp();
         settings.Channels = _channelList;
 
@@ -730,7 +758,7 @@ internal sealed class MainForm : Form
             Ui.Button("Install", (_, _) => ServiceAction(WindowsServiceManager.Install, "installed")),
             Ui.Button("Uninstall", (_, _) =>
             {
-                if (Dialogs.Confirm(this, "Uninstall the Storix service? Scheduled backups will stop."))
+                if (Dialogs.Confirm(this, "Uninstall the Storix service? Scheduled backups will stop.") && ConfirmSensitive("Uninstall the Storix service."))
                 {
                     ServiceAction(WindowsServiceManager.Uninstall, "uninstalled");
                 }
@@ -742,6 +770,21 @@ internal sealed class MainForm : Form
                 WindowsServiceManager.Stop();
                 WindowsServiceManager.Start();
             }, "restarted"))));
+        grid.Row(null, Ui.Buttons(Ui.Button("Run as account...", (_, _) =>
+        {
+            if (WindowsServiceManager.GetStatus() is null)
+            {
+                Dialogs.Error(this, "Install the service first.");
+                return;
+            }
+
+            if (ConfirmSensitive("Change the account the Storix service runs as."))
+            {
+                using var form = new ServiceAccountForm();
+                form.ShowDialog(this);
+                _services.Audit.Add("service.account", StorixPaths.ServiceName, ServiceAccount.Current());
+            }
+        }, 150)));
         grid.Fill();
         return grid;
     }
@@ -799,6 +842,10 @@ internal sealed class MainForm : Form
             }
 
             passphrase = dialog.Passphrase;
+            if (!ConfirmSensitive("Export the configuration including passwords and keys."))
+            {
+                return;
+            }
         }
 
         using var save = new SaveFileDialog

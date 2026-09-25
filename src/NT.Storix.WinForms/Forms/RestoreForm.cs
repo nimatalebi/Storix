@@ -33,10 +33,18 @@ internal sealed class RestoreForm : Form
 
     private readonly NT.Storix.Core.Persistence.AuditRepository? _audit;
 
-    public RestoreForm(IReadOnlyList<BackupJob> jobs, IDestinationFactory destinations, BackupJob? selected = null, NT.Storix.Core.Persistence.AuditRepository? audit = null)
+    private readonly Func<string, bool> _confirm;
+
+    public RestoreForm(
+        IReadOnlyList<BackupJob> jobs,
+        IDestinationFactory destinations,
+        BackupJob? selected = null,
+        NT.Storix.Core.Persistence.AuditRepository? audit = null,
+        Func<string, bool>? confirm = null)
     {
         _jobs = jobs;
         _audit = audit;
+        _confirm = confirm ?? (_ => true);
         _restore = new RestoreService(destinations);
 
         Text = "Restore backup";
@@ -184,6 +192,11 @@ internal sealed class RestoreForm : Form
         catch (FileNotFoundException ex)
         {
             Dialogs.Error(this, ex.Message);
+            return;
+        }
+
+        if (!_confirm($"Restore a backup to {_target.Text.Trim()}."))
+        {
             return;
         }
 
