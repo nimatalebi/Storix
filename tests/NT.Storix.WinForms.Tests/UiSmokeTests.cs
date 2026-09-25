@@ -15,6 +15,11 @@ public class UiSmokeTests
 
     private static void RunOnSta(Action action)
     {
+        lock (Problems)
+        {
+            Problems.Clear();
+        }
+
         Exception? error = null;
         var thread = new Thread(() =>
         {
@@ -35,12 +40,78 @@ public class UiSmokeTests
         {
             throw new InvalidOperationException("UI failed: " + error, error);
         }
+
+        lock (Problems)
+        {
+            Assert.True(Problems.Count == 0, "Layout problems:\n" + string.Join("\n", Problems.Distinct()));
+        }
+    }
+
+    private static readonly List<string> Problems = [];
+
+    /// <summary>Finds layout problems a screenshot would show: clipped text, controls outside their parent, toolbar overflow.</summary>
+    private static void Audit(Control root, string screen)
+    {
+        void Visit(Control control)
+        {
+            if (!control.Visible)
+            {
+                return;
+            }
+
+            var name = $"{screen}: {control.GetType().Name} '{control.Text?.Split('\n')[0]}'";
+            if (control is Button { AutoSize: false } button && button.Text.Length > 0)
+            {
+                var needed = TextRenderer.MeasureText(button.Text, button.Font).Width + 12;
+                if (needed > button.Width)
+                {
+                    Problems.Add($"{name}: text needs {needed}px, button is {button.Width}px");
+                }
+            }
+
+            if (control is Label { AutoSize: false } label && label.Text.Length > 0 && label is not LinkLabel)
+            {
+                var size = TextRenderer.MeasureText(label.Text, label.Font, new Size(label.Width, 0), TextFormatFlags.WordBreak);
+                if (size.Height > label.Height + 2)
+                {
+                    Problems.Add($"{name}: text needs {size.Height}px height, label is {label.Height}px");
+                }
+            }
+
+            if (control.Parent is { } parent && parent is not ScrollableControl { AutoScroll: true } && parent is not TabControl
+                && control.Width > 0 && (control.Right > parent.ClientSize.Width + 2 || control.Bottom > parent.ClientSize.Height + 2) && parent.ClientSize.Width > 0)
+            {
+                Problems.Add($"{name}: outside its parent ({control.Bounds} in {parent.ClientSize})");
+            }
+
+            if (control is ToolStrip strip)
+            {
+                foreach (ToolStripItem item in strip.Items)
+                {
+                    if (item.Visible && item.Placement == ToolStripItemPlacement.Overflow)
+                    {
+                        Problems.Add($"{screen}: toolbar item '{item.Text}' does not fit and moved to the overflow menu");
+                    }
+                }
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                Visit(child);
+            }
+        }
+
+        Visit(root);
     }
 
     private static void Capture(Control control, string name)
     {
         Directory.CreateDirectory(Screenshots);
         Application.DoEvents();
+        lock (Problems)
+        {
+            Audit(control, name);
+        }
         using var bitmap = new Bitmap(control.Width, control.Height);
         control.DrawToBitmap(bitmap, new Rectangle(Point.Empty, control.Size));
         bitmap.Save(Path.Combine(Screenshots, name + ".png"));
@@ -80,9 +151,10 @@ public class UiSmokeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Main_window_tabs_render(bool persian)
+    public void Main_window_tabs_render(bool persian) => RunOnSta(() => Main_window_tabs_render_core(persian));
+
+    private static void Main_window_tabs_render_core(bool persian)
     {
-        RunOnSta(() =>
         {
             Localizer.SetLanguage(persian);
             try
@@ -103,7 +175,7 @@ public class UiSmokeTests
             {
                 Localizer.SetLanguage(false);
             }
-        });
+        }
     }
 
     [Fact]
