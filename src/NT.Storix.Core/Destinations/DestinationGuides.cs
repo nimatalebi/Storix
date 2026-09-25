@@ -288,3 +288,94 @@ public static class DestinationGuides
         ],
         [L("Plugin guide", "راهنمای افزونه‌ها", "https://github.com/nimatalebi/Storix/blob/main/docs/PLUGINS.md")]);
 }
+
+/// <summary>Step-by-step setup instructions for notification channels.</summary>
+public static class ChannelGuides
+{
+    private static GuideText T(string en, string fa) => new(en, fa);
+
+    private static GuideLink L(string en, string fa, string url) => new(new GuideText(en, fa), url);
+
+    public static DestinationGuide For(NotificationChannelKind kind) => kind switch
+    {
+        NotificationChannelKind.Telegram => Telegram,
+        NotificationChannelKind.Bale => Bale,
+        NotificationChannelKind.Slack => Slack,
+        NotificationChannelKind.Teams => Teams,
+        NotificationChannelKind.Discord => Discord,
+        _ => Webhook,
+    };
+
+    private static readonly DestinationGuide Telegram = new(
+        T("Telegram notifications", "اعلان در تلگرام"),
+        [
+            T("Open @BotFather in Telegram → /newbot → pick a name and a username ending in \"bot\" → copy the token into BotToken.",
+              "در تلگرام ‎@BotFather را باز کنید ← ‎/newbot ← نام و نام‌کاربری‌ای که به «bot» ختم شود ← توکن را در BotToken بگذارید."),
+            T("Private chat: open your bot and press Start. Group or channel: add the bot (in a channel as an administrator allowed to post).",
+              "چت خصوصی: ربات را باز و Start را بزنید. گروه یا کانال: ربات را اضافه کنید (در کانال به‌عنوان مدیر با اجازهٔ ارسال)."),
+            T("Chat id: send any message there, open https://api.telegram.org/bot<TOKEN>/getUpdates and copy the \"chat\":{\"id\": ...} number into ChatId (channels and groups start with -100).",
+              "شناسهٔ چت: یک پیام بفرستید، https://api.telegram.org/bot<TOKEN>/getUpdates را باز و عدد ‎\"chat\":{\"id\": ...}‎ را در ChatId بگذارید (کانال و گروه با ‎-100 شروع می‌شوند)."),
+            T("Server without access to Telegram: set ApiBaseUrl to your Cloudflare Worker relay and RelayKey to its RELAY_KEY (see docs/TELEGRAM.md). Click Send test.",
+              "سرور بدون دسترسی به تلگرام: ApiBaseUrl را نشانی Worker رله در Cloudflare و RelayKey را همان RELAY_KEY بگذارید (docs/TELEGRAM.md). سپس «ارسال آزمایشی»."),
+        ],
+        [
+            L("@BotFather", "@BotFather", "https://t.me/BotFather"),
+            L("Relay guide", "راهنمای رله", "https://github.com/nimatalebi/Storix/blob/main/docs/TELEGRAM.md"),
+        ]);
+
+    private static readonly DestinationGuide Bale = new(
+        T("Bale notifications", "اعلان در بله"),
+        [
+            T("In Bale open the bot father (@botfather) → create a bot → copy the token into BotToken.",
+              "در بله «بات‌فادر» (‎@botfather) را باز کنید ← ساخت ربات ← توکن را در BotToken بگذارید."),
+            T("Open your bot and press Start (or add it to a group/channel as an administrator).",
+              "ربات را باز و «شروع» را بزنید (یا آن را به‌عنوان مدیر به گروه یا کانال اضافه کنید)."),
+            T("Chat id: send a message, open https://tapi.bale.ai/bot<TOKEN>/getUpdates and copy the chat id into ChatId. Click Send test.",
+              "شناسهٔ چت: یک پیام بفرستید، https://tapi.bale.ai/bot<TOKEN>/getUpdates را باز و شناسهٔ چت را در ChatId بگذارید. سپس «ارسال آزمایشی»."),
+        ],
+        [L("Bale", "بله", "https://web.bale.ai/")]);
+
+    private static readonly DestinationGuide Slack = new(
+        T("Slack notifications", "اعلان در Slack"),
+        [
+            T("Open Slack apps → Create New App → From scratch → name \"Storix\" and your workspace.",
+              "صفحهٔ Slack apps ← Create New App ← From scratch ← نام «Storix» و Workspace خودتان."),
+            T("Incoming Webhooks → turn on → Add New Webhook to Workspace → choose the channel → Allow.",
+              "Incoming Webhooks ← روشن کنید ← Add New Webhook to Workspace ← کانال را انتخاب ← Allow."),
+            T("Copy the webhook URL (https://hooks.slack.com/services/...) into Url. Click Send test.",
+              "نشانی Webhook (https://hooks.slack.com/services/...) را در Url بگذارید. سپس «ارسال آزمایشی»."),
+        ],
+        [L("Slack apps", "برنامه‌های Slack", "https://api.slack.com/apps")]);
+
+    private static readonly DestinationGuide Teams = new(
+        T("Microsoft Teams notifications", "اعلان در Microsoft Teams"),
+        [
+            T("In Teams, open the channel → ⋯ (More options) → Workflows.",
+              "در Teams کانال را باز کنید ← ⋯ (گزینه‌های بیشتر) ← Workflows."),
+            T("Choose the template \"Post to a channel when a webhook request is received\" → sign in → pick team and channel → Add workflow.",
+              "الگوی «Post to a channel when a webhook request is received» را انتخاب ← ورود ← تیم و کانال ← Add workflow."),
+            T("Copy the URL shown at the end into Url. Click Send test.",
+              "نشانی نمایش‌داده‌شده در پایان را در Url بگذارید. سپس «ارسال آزمایشی»."),
+        ],
+        [L("Teams webhooks (Workflows)", "Webhook در Teams", "https://support.microsoft.com/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498")]);
+
+    private static readonly DestinationGuide Discord = new(
+        T("Discord notifications", "اعلان در Discord"),
+        [
+            T("Server Settings → Integrations → Webhooks → New Webhook.", "Server Settings ← Integrations ← Webhooks ← New Webhook."),
+            T("Choose the channel and a name, then Copy Webhook URL and paste it into Url. Click Send test.",
+              "کانال و نام را انتخاب کنید، سپس Copy Webhook URL و آن را در Url بگذارید. سپس «ارسال آزمایشی»."),
+        ],
+        [L("Discord webhooks", "Webhook در Discord", "https://support.discord.com/hc/en-us/articles/228383668")]);
+
+    private static readonly DestinationGuide Webhook = new(
+        T("Webhook (your own system)", "Webhook (سامانهٔ خودتان)"),
+        [
+            T("Url: an HTTPS endpoint of your system (monitoring, ticketing, n8n, Zapier...). Storix sends a JSON document with the job, status, size and message.",
+              "Url: نشانی HTTPS سامانهٔ شما (مانیتورینگ، تیکتینگ، n8n، Zapier...). استوریکس یک سند JSON شامل کار، وضعیت، حجم و پیام می‌فرستد."),
+            T("SigningSecret (recommended): any long random text. Storix signs the body with HMAC-SHA256 and sends X-Storix-Signature: sha256=<hex>; check it on your side.",
+              "SigningSecret (توصیه‌شده): یک متن تصادفی طولانی. استوریکس بدنه را با HMAC-SHA256 امضا و X-Storix-Signature: sha256=<hex> را ارسال می‌کند؛ آن را در سمت خود بررسی کنید."),
+            T("Click Send test to check that your endpoint accepts it.", "با «ارسال آزمایشی» بررسی کنید که سامانهٔ شما آن را می‌پذیرد."),
+        ],
+        []);
+}

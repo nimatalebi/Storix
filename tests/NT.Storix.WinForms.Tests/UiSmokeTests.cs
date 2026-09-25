@@ -167,4 +167,19 @@ public class UiSmokeTests
             }
         });
     }
+
+    [Fact]
+    public void Channel_editor_renders_every_kind_with_its_guide()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var kind in Enum.GetValues<NotificationChannelKind>())
+            {
+                using var editor = new ChannelEditorForm(new NotificationChannel { Name = kind.ToString(), Kind = kind }) { ShowInTaskbar = false, Opacity = 0 };
+                editor.Show();
+                Capture(editor, $"channel-{kind}");
+                editor.Close();
+            }
+        });
+    }
 }

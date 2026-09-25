@@ -23,6 +23,18 @@ public class DestinationGuideTests
     }
 
     [Fact]
+    public void Every_notification_channel_has_a_guide_in_both_languages()
+    {
+        foreach (var kind in Enum.GetValues<NotificationChannelKind>())
+        {
+            var guide = ChannelGuides.For(kind);
+            Assert.NotEmpty(guide.Steps);
+            Assert.All(guide.Steps.Append(guide.Title), t => Assert.False(string.IsNullOrWhiteSpace(t.En) || string.IsNullOrWhiteSpace(t.Fa)));
+            Assert.All(guide.Links, l => Assert.StartsWith("https://", l.Url));
+        }
+    }
+
+    [Fact]
     public void Google_drive_guide_follows_the_sign_in_mode()
     {
         var destination = new DestinationDefinition { Kind = DestinationKind.GoogleDrive };

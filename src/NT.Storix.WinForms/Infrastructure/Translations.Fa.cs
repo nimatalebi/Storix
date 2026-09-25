@@ -339,5 +339,7 @@ internal static class TranslationsFa
         ["Google Drive"] = "گوگل‌درایو",
         ["Dropbox"] = "دراپ‌باکس",
         ["OneDrive / SharePoint"] = "وان‌درایو / شیرپوینت",
+        ["The test notification was sent."] = "اعلان آزمایشی ارسال شد.",
+        ["Sending failed:"] = "ارسال ناموفق بود:",
     };
 }

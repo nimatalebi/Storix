@@ -20,24 +20,35 @@ internal sealed class ChannelEditorForm : Form
         MinimizeBox = false;
 
         _grid.SelectedObject = Channel;
+        _grid.PropertyValueChanged += (_, _) => _guide.ShowGuide(NT.Storix.Core.Destinations.ChannelGuides.For(Channel.Kind));
+        ClientSize = new Size(980, 560);
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 28 };
 
         var grid = Ui.Form();
-        grid.Row(null, new Label
-        {
-            AutoSize = true,
-            MaximumSize = new Size(520, 0),
-            Text = "Telegram/Bale: create a bot, add it to your chat and enter the bot token and chat id. " +
-                   "Slack/Teams/Discord: paste an incoming webhook URL. Webhook: Storix POSTs a JSON document.",
-        });
-        grid.Row(null, _grid, height: 330);
-        grid.Row(null, Ui.Buttons(Ui.Button("Send test", OnTest), ok, cancel));
+        grid.Row(null, _grid, height: 400);
+        grid.Row(null, Ui.Buttons(Ui.Button("Send test", OnTest)));
+        grid.Row(null, _result);
         grid.Fill();
-        Controls.Add(grid);
+
+        // Settings on the left, the setup guide for the chosen kind on the right.
+        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel2 };
+        split.Panel1.Controls.Add(grid);
+        split.Panel2.Controls.Add(_guide);
+        split.Panel2.Padding = new Padding(0, 10, 10, 10);
+        Load += (_, _) => split.SplitterDistance = Math.Max(420, ClientSize.Width - 420);
+
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, Height = 44, Padding = new Padding(8) };
+        buttons.Controls.AddRange([cancel, ok]);
+        Controls.Add(split);
+        Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
+        _guide.ShowGuide(NT.Storix.Core.Destinations.ChannelGuides.For(Channel.Kind));
     }
+
+    private readonly GuidePanel _guide = new() { Dock = DockStyle.Fill };
+    private readonly Label _result = new() { AutoSize = true, MaximumSize = new Size(520, 0) };
 
     public NotificationChannel Channel { get; }
 
@@ -48,11 +59,13 @@ internal sealed class ChannelEditorForm : Form
         {
             var notification = new Notification(NotificationEvent.Test, "Storix test notification", $"This is a test message from Storix on {Environment.MachineName}.");
             await ChannelNotifier.SendAsync(SharedHttp.Client, Channel, notification, CancellationToken.None);
-            Dialogs.Info(this, "The test notification was sent.");
+            _result.ForeColor = Color.ForestGreen;
+            _result.Text = "✓ " + Localizer.T("The test notification was sent.");
         }
         catch (Exception ex)
         {
-            Dialogs.Error(this, $"Sending failed:\n\n{ex.Message}");
+            _result.ForeColor = Color.Firebrick;
+            _result.Text = "✗ " + Localizer.T("Sending failed:") + " " + ex.Message;
         }
         finally
         {
