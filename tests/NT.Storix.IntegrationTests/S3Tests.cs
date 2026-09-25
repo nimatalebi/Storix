@@ -50,4 +50,38 @@ public class S3Tests
         var backups = await harness.Restore.ListBackupsAsync(job, destination, CancellationToken.None);
         Assert.Single(backups);
     }
+
+    [DockerFact]
+    public async Task Object_lock_keeps_backups_that_retention_would_delete()
+    {
+        await using var container = new ContainerBuilder("localstack/localstack:3.8")
+            .WithEnvironment("SERVICES", "s3")
+            .WithPortBinding(4566, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Ready."))
+            .Build();
+        await container.StartAsync();
+
+        var endpoint = $"http://{container.Hostname}:{container.GetMappedPublicPort(4566)}";
+        using (var admin = new AmazonS3Client(new BasicAWSCredentials("test", "test"), new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true, AuthenticationRegion = "us-east-1" }))
+        {
+            await admin.PutBucketAsync(new Amazon.S3.Model.PutBucketRequest { BucketName = "locked", ObjectLockEnabledForBucket = true });
+        }
+
+        using var harness = new Harness();
+        var destination = new DestinationDefinition
+        {
+            Name = "S3 locked",
+            Kind = DestinationKind.S3,
+            S3 = { ServiceUrl = endpoint, ForcePathStyle = true, AccessKeyId = "test", SecretAccessKey = "test", BucketName = "locked", ObjectLockMode = S3ObjectLockMode.Governance, ObjectLockDays = 1 },
+        };
+        var job = Harness.FilesJob(harness.CreateSampleFiles(), destination, encrypt: false);
+        job.Retention.KeepLast = 1;
+
+        await harness.BackupAsync(job);
+        await Task.Delay(1100);
+        var second = await harness.BackupAsync(job);
+
+        Assert.Contains("is locked until", second.Log);
+        Assert.Equal(2, (await harness.Restore.ListBackupsAsync(job, destination, CancellationToken.None)).Count);
+    }
 }

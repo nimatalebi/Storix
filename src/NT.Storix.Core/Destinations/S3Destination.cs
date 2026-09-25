@@ -70,6 +70,12 @@ public sealed class S3Destination(S3Options options, int maxUploadKBps = 0) : IB
             AutoCloseStream = false,
             PartSize = Math.Clamp(options.PartSizeMb, 5, 512) * 1024L * 1024L,
         };
+        if (options.ObjectLockMode != S3ObjectLockMode.None)
+        {
+            request.ObjectLockMode = options.ObjectLockMode == S3ObjectLockMode.Compliance ? ObjectLockMode.Compliance : ObjectLockMode.Governance;
+            request.ObjectLockRetainUntilDate = DateTime.UtcNow.AddDays(Math.Max(1, options.ObjectLockDays));
+        }
+
         if (!string.IsNullOrWhiteSpace(options.StorageClass))
         {
             request.StorageClass = S3StorageClass.FindValue(options.StorageClass.Trim());
@@ -94,7 +100,24 @@ public sealed class S3Destination(S3Options options, int maxUploadKBps = 0) : IB
 
     public async Task DeleteAsync(string remoteName, CancellationToken cancellationToken)
     {
-        await GetClient().DeleteObjectAsync(Bucket, KeyPrefix + remoteName, cancellationToken);
+        var client = GetClient();
+        var key = KeyPrefix + remoteName;
+
+        // Never try to remove immutable backups (a delete would only hide them behind a delete marker).
+        try
+        {
+            var retention = await client.GetObjectRetentionAsync(new GetObjectRetentionRequest { BucketName = Bucket, Key = key }, cancellationToken);
+            if (retention.Retention?.RetainUntilDate is { } until && until > DateTime.UtcNow)
+            {
+                throw new BackupLockedException(remoteName, new DateTimeOffset(DateTime.SpecifyKind(until, DateTimeKind.Utc)));
+            }
+        }
+        catch (AmazonS3Exception)
+        {
+            // No retention configured (or not supported by the provider).
+        }
+
+        await client.DeleteObjectAsync(Bucket, key, cancellationToken);
     }
 
     public ValueTask DisposeAsync()

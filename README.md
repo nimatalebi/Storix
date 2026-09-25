@@ -66,6 +66,7 @@ Backup Agent
 | **Retry** | The database dump and each upload are retried with exponential back-off (attempt count, first delay and multiplier are set per job). |
 | **Checksum** | A SHA-256 hash is saved in the history and uploaded as a `sha256sum`-compatible `.sha256` file next to each archive. |
 | **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations, or from a random data key wrapped with an RSA-4096 public key (the private key stays offline). Encryption streams data, so large files are fine. |
+| **Immutable backups** | S3 Object Lock (governance or compliance, N days) on new backups. Retention never deletes a locked backup; it is kept and logged. |
 | **Retention** | "Keep last N" and/or "delete older than N days", plus long-term GFS rules (keep daily/weekly/monthly/yearly), applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
 | **Chunking** | Optionally split backups into volumes (`.part0001`, `.part0002`…) with a manifest. Each volume is uploaded and checked separately; after an interruption, only the missing volumes are uploaded again. |

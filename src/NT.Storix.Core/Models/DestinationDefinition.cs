@@ -204,6 +204,19 @@ public sealed class S3Options
 
     [Category("Transfer"), Description("Multipart part size in MB (5-512).")]
     public int PartSizeMb { get; set; } = 16;
+
+    [Category("Immutability"), Description("S3 Object Lock for new backups (the bucket must have Object Lock enabled). Compliance cannot be shortened by anyone, Governance only by special permission.")]
+    public S3ObjectLockMode ObjectLockMode { get; set; } = S3ObjectLockMode.None;
+
+    [Category("Immutability"), Description("Days each backup stays locked (cannot be deleted or overwritten).")]
+    public int ObjectLockDays { get; set; } = 30;
+}
+
+public enum S3ObjectLockMode
+{
+    None,
+    Governance,
+    Compliance,
 }
 
 public sealed class AzureBlobOptions

@@ -496,9 +496,17 @@ public sealed class BackupJobRunner(
                     continue;
                 }
 
-                foreach (var file in backup.Files)
+                try
                 {
-                    await destination.DeleteAsync(file, cancellationToken);
+                    foreach (var file in backup.Files)
+                    {
+                        await destination.DeleteAsync(file, cancellationToken);
+                    }
+                }
+                catch (BackupLockedException locked)
+                {
+                    log.Info($"Retention: kept '{backup.Name}' on '{definition.Name}': {locked.Message}");
+                    continue;
                 }
 
                 sqlBackups?.DeleteByArchive(job.Id, [backup.Name]);
