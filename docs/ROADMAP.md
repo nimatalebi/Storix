@@ -43,7 +43,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Pause and resume a running job
 - [x] Free-space check that fails early, with an estimate (staging and local destinations)
 - [x] GFS retention (daily/weekly/monthly/yearly)
-- [ ] Key management: printable recovery sheet, optional key file
+- [x] Key management: printable recovery sheet, optional key file, warning until the password backup is confirmed
 
 ## P2: new ideas
 

@@ -236,7 +236,7 @@ Without the manager:
 The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix.Core/Processing/AesFileEncryptor.cs):
 `"STRX" | version | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`.
 
-> **Keep your encryption passwords safe.** Without the password, an encrypted backup cannot be restored.
+> **Keep your encryption passwords safe.** Without the password (and the key file, if you use one), an encrypted backup cannot be restored. In the job editor, **Processing → Recovery sheet…** prints everything needed for a restore. You can also add a random **key file**, which is combined with the password.
 
 ### Import / export
 

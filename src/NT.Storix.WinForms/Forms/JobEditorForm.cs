@@ -4,6 +4,7 @@ using NT.Storix.Core.Destinations;
 using NT.Storix.Core.Engine;
 using NT.Storix.Core.Models;
 using NT.Storix.Core.Scheduling;
+using NT.Storix.Core.Security;
 using NT.Storix.WinForms.Infrastructure;
 
 namespace NT.Storix.WinForms.Forms;
@@ -54,6 +55,8 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
     private readonly TextBox _passwordConfirm = new() { UseSystemPasswordChar = true };
     private readonly CheckBox _verify = new() { Text = "Verify archive before uploading", AutoSize = true };
+    private readonly TextBox _keyFile = new();
+    private readonly CheckBox _recoveryConfirmed = new() { Text = "I have stored the password / key file in a safe place (e.g. printed recovery sheet)", AutoSize = true };
 
     // Destinations
     private readonly ListView _destinations = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false };
@@ -136,6 +139,14 @@ internal sealed class JobEditorForm : Form
             }
 
             SaveJob();
+            if (Job.Processing.Encrypt && !Job.Processing.RecoveryInfoConfirmed &&
+                !Dialogs.Confirm(this, "You have not confirmed that the encryption password / key file is stored in a safe place.\n\n" +
+                                       "If it is lost, the backups can never be restored. Save anyway?"))
+            {
+                e.Cancel = true;
+                return;
+            }
+
             var errors = BackupJobRunner.GetValidationErrors(Job);
             if (errors.Count > 0)
             {
@@ -296,9 +307,21 @@ internal sealed class JobEditorForm : Form
             MaximumSize = new Size(650, 0),
             Text = "Keep the encryption password safe. Encrypted backups cannot be restored without it.",
         });
+        grid.Row("Key file (optional)", RestoreForm.PathRow(_keyFile, (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Key files (*.key)|*.key|All files (*.*)|*.*" };
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                _keyFile.Text = dialog.FileName;
+            }
+        }));
+        grid.Row(null, Ui.Buttons(
+            Ui.Button("Create key file...", (_, _) => CreateKeyFile(), 140),
+            Ui.Button("Recovery sheet...", (_, _) => PrintRecoverySheet(), 140)));
+        grid.Row(null, _recoveryConfirmed);
         grid.Row(null, _verify);
         grid.Fill();
-        _encrypt.CheckedChanged += (_, _) => _password.Enabled = _passwordConfirm.Enabled = _encrypt.Checked;
+        _encrypt.CheckedChanged += (_, _) => _password.Enabled = _passwordConfirm.Enabled = _keyFile.Enabled = _encrypt.Checked;
         return grid;
     }
 
@@ -426,6 +449,9 @@ internal sealed class JobEditorForm : Form
         _password.Text = _passwordConfirm.Text = p.EncryptionPassword;
         _password.Enabled = _passwordConfirm.Enabled = p.Encrypt;
         _verify.Checked = p.VerifyArchive;
+        _keyFile.Text = p.EncryptionKeyFile;
+        _keyFile.Enabled = p.Encrypt;
+        _recoveryConfirmed.Checked = p.RecoveryInfoConfirmed;
 
         _keepLast.Value = Math.Clamp(Job.Retention.KeepLast, 0, 10_000);
         _keepDays.Value = Math.Clamp(Job.Retention.KeepDays, 0, 36_500);
@@ -483,6 +509,8 @@ internal sealed class JobEditorForm : Form
         Job.Processing.Encrypt = _encrypt.Checked;
         Job.Processing.EncryptionPassword = _encrypt.Checked ? _password.Text : null;
         Job.Processing.VerifyArchive = _verify.Checked;
+        Job.Processing.EncryptionKeyFile = _encrypt.Checked ? NullIfEmpty(_keyFile.Text) : null;
+        Job.Processing.RecoveryInfoConfirmed = _recoveryConfirmed.Checked;
 
         Job.Retention.KeepLast = (int)_keepLast.Value;
         Job.Retention.KeepDays = (int)_keepDays.Value;
@@ -503,6 +531,56 @@ internal sealed class JobEditorForm : Form
         Job.Hooks.PostCommand = NullIfEmpty(_postCommand.Text);
         Job.Hooks.TimeoutSeconds = (int)_hookTimeout.Value;
         Job.Hooks.AbortOnPreCommandFailure = _abortOnPre.Checked;
+    }
+
+    private void CreateKeyFile()
+    {
+        using var dialog = new SaveFileDialog { Filter = "Key files (*.key)|*.key", FileName = $"{Job.FilePrefix}.key" };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (File.Exists(dialog.FileName) && !Dialogs.Confirm(this, "The key file already exists. Replacing it makes existing backups made with it unreadable. Replace?"))
+        {
+            return;
+        }
+
+        EncryptionSecret.CreateKeyFile(dialog.FileName);
+        _keyFile.Text = dialog.FileName;
+        _recoveryConfirmed.Checked = false;
+        Dialogs.Info(this, "A new key file was created. Keep a copy somewhere safe (not only on this server) and print the recovery sheet.");
+    }
+
+    private void PrintRecoverySheet()
+    {
+        SaveJob();
+        var include = MessageBox.Show(this, "Include the password on the sheet?\n\nYes: the sheet contains the password (store it like cash).\nNo: an empty field is printed so you can write it by hand.",
+            "Recovery sheet", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+        if (include == DialogResult.Cancel)
+        {
+            return;
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), $"storix-recovery-{Job.FilePrefix}.html");
+        File.WriteAllText(path, RecoverySheet.BuildHtml(Job, include == DialogResult.Yes));
+        Links.Open(this, path);
+        if (Dialogs.Confirm(this, "Print the sheet from the browser (Ctrl+P) and store it safely. Then delete the temporary file.\n\nDid you print or store it?"))
+        {
+            _recoveryConfirmed.Checked = true;
+        }
+
+        // Give the browser time to load the page before removing the temporary copy.
+        _ = Task.Delay(TimeSpan.FromMinutes(2)).ContinueWith(_ =>
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException)
+            {
+            }
+        }, TaskScheduler.Default);
     }
 
     private void ApplySchedule(ScheduleDefinition schedule)

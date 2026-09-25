@@ -1,4 +1,5 @@
 using NT.Storix.Core.Processing;
+using NT.Storix.Core.Security;
 using NT.Storix.WinForms.Infrastructure;
 
 namespace NT.Storix.WinForms.Forms;
@@ -9,6 +10,7 @@ internal sealed class DecryptForm : Form
     private readonly TextBox _input = new();
     private readonly TextBox _output = new();
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
+    private readonly TextBox _keyFile = new();
     private readonly ProgressBar _progress = new() { Style = ProgressBarStyle.Marquee, Visible = false, Height = 16 };
     private readonly Button _decrypt;
 
@@ -18,13 +20,21 @@ internal sealed class DecryptForm : Form
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
-        ClientSize = new Size(600, 230);
+        ClientSize = new Size(600, 270);
 
         _decrypt = Ui.Button("Decrypt", OnDecrypt);
         var grid = Ui.Form();
         grid.Row("Encrypted file", PathRow(_input, BrowseInput));
         grid.Row("Output ZIP", PathRow(_output, BrowseOutput));
         grid.Row("Password", _password);
+        grid.Row("Key file (if used)", PathRow(_keyFile, (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Key files (*.key)|*.key|All files (*.*)|*.*" };
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                _keyFile.Text = dialog.FileName;
+            }
+        }));
         grid.Row(null, _progress);
         grid.Row(null, Ui.Buttons(_decrypt, Ui.Button("Close", (_, _) => Close())));
         grid.Fill();
@@ -68,9 +78,9 @@ internal sealed class DecryptForm : Form
 
     private async void OnDecrypt(object? sender, EventArgs e)
     {
-        if (!File.Exists(_input.Text) || string.IsNullOrWhiteSpace(_output.Text) || _password.Text.Length == 0)
+        if (!File.Exists(_input.Text) || string.IsNullOrWhiteSpace(_output.Text) || (_password.Text.Length == 0 && _keyFile.Text.Length == 0))
         {
-            Dialogs.Error(this, "Select the encrypted file, the output file and enter the password.");
+            Dialogs.Error(this, "Select the encrypted file, the output file and enter the password (or key file).");
             return;
         }
 
@@ -83,7 +93,7 @@ internal sealed class DecryptForm : Form
         _progress.Visible = true;
         try
         {
-            var (input, output, password) = (_input.Text, _output.Text, _password.Text);
+            var (input, output, password) = (_input.Text, _output.Text, EncryptionSecret.Combine(_password.Text, _keyFile.Text)!);
             await Task.Run(async () =>
             {
                 File.Delete(output);

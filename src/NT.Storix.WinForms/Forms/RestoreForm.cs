@@ -1,6 +1,7 @@
 using NT.Storix.Core.Destinations;
 using NT.Storix.Core.Engine;
 using NT.Storix.Core.Models;
+using NT.Storix.Core.Security;
 using NT.Storix.WinForms.Infrastructure;
 
 namespace NT.Storix.WinForms.Forms;
@@ -19,6 +20,7 @@ internal sealed class RestoreForm : Form
     private readonly TextBox _file = new();
     private readonly TextBox _target = new();
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
+    private readonly TextBox _keyFile = new();
     private readonly CheckBox _overwrite = new() { Text = "Overwrite existing files", AutoSize = true };
     private readonly CheckBox _verify = new() { Text = "Verify SHA-256 checksum", AutoSize = true, Checked = true };
     private readonly TextBox _log = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
@@ -60,6 +62,14 @@ internal sealed class RestoreForm : Form
         grid.Row("Backup file", PathRow(_file, BrowseFile));
         grid.Row("Restore to folder", PathRow(_target, BrowseTarget));
         grid.Row("Encryption password", _password);
+        grid.Row("Key file (if used)", PathRow(_keyFile, (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Key files (*.key)|*.key|All files (*.*)|*.*" };
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                _keyFile.Text = dialog.FileName;
+            }
+        }));
         grid.Row(null, _overwrite);
         grid.Row(null, _verify);
         grid.Row(null, Ui.Buttons(_run, _database, Ui.Button("Close", (_, _) => Close(), 90)));
@@ -110,6 +120,7 @@ internal sealed class RestoreForm : Form
             if (job.Processing.Encrypt && string.IsNullOrEmpty(_password.Text))
             {
                 _password.Text = job.Processing.EncryptionPassword;
+                _keyFile.Text = job.Processing.EncryptionKeyFile;
             }
         }
     }
@@ -158,7 +169,18 @@ internal sealed class RestoreForm : Form
             return;
         }
 
-        var request = new RestoreRequest(_target.Text.Trim(), string.IsNullOrEmpty(_password.Text) ? null : _password.Text, _overwrite.Checked, _verify.Checked);
+        string? secret;
+        try
+        {
+            secret = EncryptionSecret.Combine(_password.Text, _keyFile.Text);
+        }
+        catch (FileNotFoundException ex)
+        {
+            Dialogs.Error(this, ex.Message);
+            return;
+        }
+
+        var request = new RestoreRequest(_target.Text.Trim(), secret, _overwrite.Checked, _verify.Checked);
         var status = new Progress<string>(Log);
         _cts = new CancellationTokenSource();
         _run.Enabled = false;

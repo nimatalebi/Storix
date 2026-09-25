@@ -6,6 +6,7 @@ using NT.Storix.Core.Monitoring;
 using NT.Storix.Core.Persistence;
 using NT.Storix.Core.Processing;
 using NT.Storix.Core.Scheduling;
+using NT.Storix.Core.Security;
 using NT.Storix.Core.Sources;
 
 namespace NT.Storix.Core.Engine;
@@ -81,13 +82,14 @@ public sealed class BackupJobRunner(
             if (job.Processing.Encrypt)
             {
                 finalPath = zipPath + AesFileEncryptor.FileExtension;
-                await AesFileEncryptor.EncryptAsync(zipPath, finalPath, job.Processing.EncryptionPassword!, cancellationToken);
+                var secret = EncryptionSecret.Resolve(job.Processing)!;
+                await AesFileEncryptor.EncryptAsync(zipPath, finalPath, secret, cancellationToken);
                 File.Delete(zipPath);
                 log.Info("Archive encrypted (AES-256).");
 
                 if (job.Processing.VerifyArchive)
                 {
-                    await AesFileEncryptor.VerifyAsync(finalPath, job.Processing.EncryptionPassword!, cancellationToken);
+                    await AesFileEncryptor.VerifyAsync(finalPath, secret, cancellationToken);
                     log.Info("Encrypted archive verified.");
                 }
             }
@@ -249,9 +251,9 @@ public sealed class BackupJobRunner(
             errors.Add($"Schedule: {scheduleError}");
         }
 
-        if (job.Processing.Encrypt && string.IsNullOrEmpty(job.Processing.EncryptionPassword))
+        if (job.Processing.Encrypt && string.IsNullOrEmpty(job.Processing.EncryptionPassword) && string.IsNullOrWhiteSpace(job.Processing.EncryptionKeyFile))
         {
-            errors.Add("Encryption is enabled but no password is set.");
+            errors.Add("Encryption is enabled but no password or key file is set.");
         }
 
         if (!job.Destinations.Any(d => d.Enabled))
