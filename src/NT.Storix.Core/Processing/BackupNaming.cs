@@ -59,6 +59,11 @@ public static partial class BackupNaming
                 related.Add(archive + Checksum.SidecarExtension);
             }
 
+            if (names.Contains(archive + BackupIndex.Extension))
+            {
+                related.Add(archive + BackupIndex.Extension);
+            }
+
             result[archive] = new BackupFileInfo(archive, createdAt, related);
         }
 

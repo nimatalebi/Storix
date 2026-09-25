@@ -403,7 +403,7 @@ internal sealed class MainForm : Form
                 run.Trigger.ToString(),
                 run.Status.ToString(),
                 run.Duration?.ToString(@"hh\:mm\:ss") ?? "-",
-                run.SizeBytes is { } size ? FormatSize(size) : "-",
+                run.SizeBytes is { } size ? NT.Storix.Core.Engine.BackupJobRunner.FormatSize(size) : "-",
                 run.FileName ?? "-",
                 run.Message ?? string.Empty,
             ])
@@ -786,20 +786,6 @@ internal sealed class MainForm : Form
         RunStatus.Cancelled => SystemColors.GrayText,
         _ => Color.Firebrick,
     };
-
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double value = bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.##} {units[unit]}";
-    }
 
     private void OpenFolder(string path)
     {

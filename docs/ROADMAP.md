@@ -72,9 +72,9 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Presets for S3-compatible providers
 
 ### Restore experience
-- [ ] Browse and search inside a backup; restore single files
+- [x] Browse and search inside a backup; restore single files
 - [ ] Standalone restore CLI (`storix-restore`) that needs no install and no database
-- [ ] Restore preview (size, file count, estimated time)
+- [x] Restore preview (size, file count)
 
 ### Monitoring and UX
 - [ ] Tray icon with status and "run now"

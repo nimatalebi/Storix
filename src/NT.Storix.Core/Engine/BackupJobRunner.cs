@@ -108,6 +108,12 @@ public sealed class BackupJobRunner(
             run.Sha256 = hash;
             log.Info($"SHA-256: {hash}");
 
+            // File index for browsing and single-file restores (encrypted like the archive).
+            var indexPath = finalPath + BackupIndex.Extension;
+            await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries] }
+                .WriteAsync(indexPath, job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null, cancellationToken);
+            var indexItem = new UploadItem(indexPath, Path.GetFileName(indexPath), new FileInfo(indexPath).Length, SkipIfPresent: false);
+
             // Files to upload, in order. Split backups upload their manifest last (it marks a complete set).
             var uploads = new List<UploadItem>();
             if (job.Processing.SplitSizeMb > 0 && run.SizeBytes > job.Processing.SplitSizeMb * 1024L * 1024L)
@@ -120,12 +126,14 @@ public sealed class BackupJobRunner(
 
                 uploads.AddRange(manifest.Chunks.Select(c => new UploadItem(Path.Combine(staging, c.Name), c.Name, c.Size, SkipIfPresent: true)));
                 uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+                uploads.Add(indexItem);
                 uploads.Add(new UploadItem(manifestPath, Path.GetFileName(manifestPath), new FileInfo(manifestPath).Length, SkipIfPresent: false));
             }
             else
             {
                 uploads.Add(new UploadItem(finalPath, fileName, run.SizeBytes.Value, SkipIfPresent: false));
                 uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+                uploads.Add(indexItem);
             }
 
             // Wait for the allowed upload window (e.g. only at night).
@@ -517,7 +525,7 @@ public sealed class BackupJobRunner(
         }
     }
 
-    internal static string FormatSize(long bytes)
+    public static string FormatSize(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB"];
         double value = bytes;

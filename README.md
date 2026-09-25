@@ -219,6 +219,8 @@ Each run produces:
 <job-name>_<yyyyMMdd_HHmmss>.zip.sha256
 ```
 
+Every backup also gets a `<name>.index` file: a compressed list of the files it contains (encrypted like the archive). The manager uses it to browse, search and restore single files.
+
 When splitting is enabled, the archive is stored as `<name>.partNNNN` volumes plus `<name>.manifest.json`. The manifest lists every volume with its SHA-256 and is uploaded last. To restore from a folder, point the restore wizard at the manifest or any volume.
 
 Inside the ZIP: `files and folders`, `sqlserver/<db>.bak` or `mongodb/mongodb_<db>.archive`.
@@ -228,6 +230,7 @@ Inside the ZIP: `files and folders`, `sqlserver/<db>.bak` or `mongodb/mongodb_<d
 In the manager, open **Tools → Restore backup…** (or click **Restore…** on the Jobs tab):
 
 1. Choose a job and a destination, click **Load backups** and pick one. Or choose a backup file on disk.
+   Click **Browse files…** to search inside the backup and pick single files or folders to restore. Only a small encrypted index file is downloaded for this.
 2. Choose an empty target folder and enter the encryption password if the backup is encrypted.
 3. Click **Restore**. Storix downloads the backup, verifies the SHA-256 checksum, decrypts it and extracts it.
 4. If the backup contains databases, click **Restore database…**:

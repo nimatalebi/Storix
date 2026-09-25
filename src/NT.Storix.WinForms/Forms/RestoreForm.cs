@@ -26,6 +26,8 @@ internal sealed class RestoreForm : Form
     private readonly TextBox _log = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
     private readonly Button _run;
     private readonly Button _database;
+    private readonly Label _selection = new() { AutoSize = true, Text = "Restore: all files", ForeColor = SystemColors.GrayText };
+    private IReadOnlyList<string>? _include;
     private CancellationTokenSource? _cts;
     private string? _lastRestoreFolder;
 
@@ -46,6 +48,7 @@ internal sealed class RestoreForm : Form
         _job.Format += (_, e) => e.Value = ((BackupJob)e.ListItem!).Name;
         _job.SelectedIndexChanged += (_, _) => LoadDestinations();
         _destination.SelectedIndexChanged += (_, _) => _backups.Items.Clear();
+        _backups.SelectedIndexChanged += (_, _) => SetInclude(null);
         _fromDestination.CheckedChanged += (_, _) => UpdateMode();
 
         _run = Ui.Button("Restore", OnRestore);
@@ -58,6 +61,7 @@ internal sealed class RestoreForm : Form
         grid.Row("Destination", _destination);
         grid.Row(null, Ui.Buttons(Ui.Button("Load backups", OnLoadBackups, 130)));
         grid.Row(null, _backups, height: 150);
+        grid.Row(null, Ui.Buttons(Ui.Button("Browse files...", OnBrowse, 130), Ui.Button("All files", (_, _) => SetInclude(null), 90), _selection));
         grid.Row(null, _fromFile);
         grid.Row("Backup file", PathRow(_file, BrowseFile));
         grid.Row("Restore to folder", PathRow(_target, BrowseTarget));
@@ -180,7 +184,10 @@ internal sealed class RestoreForm : Form
             return;
         }
 
-        var request = new RestoreRequest(_target.Text.Trim(), secret, _overwrite.Checked, _verify.Checked);
+        var request = new RestoreRequest(_target.Text.Trim(), secret, _overwrite.Checked, _verify.Checked)
+        {
+            Include = _fromDestination.Checked ? _include : null,
+        };
         var status = new Progress<string>(Log);
         _cts = new CancellationTokenSource();
         _run.Enabled = false;
@@ -230,6 +237,53 @@ internal sealed class RestoreForm : Form
         finally
         {
             _run.Enabled = true;
+        }
+    }
+
+    private void SetInclude(IReadOnlyList<string>? include)
+    {
+        _include = include;
+        _selection.Text = include is null ? "Restore: all files" : $"Restore: {include.Count} selected item(s)";
+    }
+
+    private async void OnBrowse(object? sender, EventArgs e)
+    {
+        if (_destination.SelectedItem is not DestinationDefinition destination || _backups.SelectedItems.Count == 0)
+        {
+            Dialogs.Error(this, "Load the backups and select one first.");
+            return;
+        }
+
+        string? secret;
+        try
+        {
+            secret = EncryptionSecret.Combine(_password.Text, _keyFile.Text);
+        }
+        catch (FileNotFoundException ex)
+        {
+            Dialogs.Error(this, ex.Message);
+            return;
+        }
+
+        var backup = (BackupFileInfo)_backups.SelectedItems[0].Tag!;
+        UseWaitCursor = true;
+        try
+        {
+            Log($"Reading the file list of {backup.Name}...");
+            var index = await Task.Run(() => _restore.GetIndexAsync(destination, backup.Name, secret, CancellationToken.None));
+            using var browser = new BackupBrowserForm(index);
+            if (browser.ShowDialog(this) == DialogResult.OK)
+            {
+                SetInclude(browser.Selected);
+            }
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, ex.Message);
+        }
+        finally
+        {
+            UseWaitCursor = false;
         }
     }
 

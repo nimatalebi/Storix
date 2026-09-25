@@ -3,7 +3,11 @@ using NT.Storix.Core.Models;
 
 namespace NT.Storix.Core.Processing;
 
-public sealed record ArchiveResult(string Path, int EntryCount, int SkippedCount, long SizeBytes);
+public sealed record ArchiveResult(string Path, int EntryCount, int SkippedCount, long SizeBytes)
+{
+    /// <summary>Files written into the archive (for the backup index).</summary>
+    public IReadOnlyList<IndexEntry> Entries { get; init; } = [];
+}
 
 /// <summary>Builds ZIP (Zip64 capable) archives by streaming files from disk.</summary>
 public static class ArchiveBuilder
@@ -20,6 +24,7 @@ public static class ArchiveBuilder
         var level = ToLevel(compression);
         var written = 0;
         var skipped = 0;
+        var index = new List<IndexEntry>(entries.Count);
 
         await using (var output = new FileStream(archivePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, BufferSize, useAsync: true))
         await using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: false))
@@ -44,15 +49,21 @@ public static class ArchiveBuilder
                 {
                     var zipEntry = zip.CreateEntry(entry.EntryName, level);
                     zipEntry.LastWriteTime = File.GetLastWriteTime(entry.SourcePath);
-                    await using var target = zipEntry.Open();
-                    await input.CopyToAsync(target, BufferSize, cancellationToken);
+                    long size;
+                    await using (var target = zipEntry.Open())
+                    {
+                        await input.CopyToAsync(target, BufferSize, cancellationToken);
+                        size = input.Position;
+                    }
+
+                    index.Add(new IndexEntry { Path = entry.EntryName, Size = size, Modified = zipEntry.LastWriteTime });
                 }
 
                 written++;
             }
         }
 
-        return new ArchiveResult(archivePath, written, skipped, new FileInfo(archivePath).Length);
+        return new ArchiveResult(archivePath, written, skipped, new FileInfo(archivePath).Length) { Entries = index };
     }
 
     /// <summary>Reads every entry of the archive to make sure it is complete and not corrupted.</summary>

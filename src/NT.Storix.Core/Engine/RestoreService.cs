@@ -9,7 +9,13 @@ namespace NT.Storix.Core.Engine;
 /// <param name="Password">Encryption password (required for <c>.zip.aes</c> backups).</param>
 /// <param name="Overwrite">Replace files that already exist in the target folder.</param>
 /// <param name="VerifyChecksum">Check the SHA-256 sidecar before restoring (when present).</param>
-public sealed record RestoreRequest(string TargetDirectory, string? Password = null, bool Overwrite = false, bool VerifyChecksum = true);
+public sealed record RestoreRequest(string TargetDirectory, string? Password = null, bool Overwrite = false, bool VerifyChecksum = true)
+{
+    /// <summary>
+    /// Restore only these archive paths (files, or folders ending with '/'). Null or empty restores everything.
+    /// </summary>
+    public IReadOnlyCollection<string>? Include { get; init; }
+}
 
 public sealed record RestoreResult(IReadOnlyList<string> Files, long TotalBytes, bool ChecksumVerified);
 
@@ -142,7 +148,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
             }
 
             status?.Report($"Extracting to {request.TargetDirectory}...");
-            var (files, bytes) = await ExtractAsync(zipPath, request.TargetDirectory, request.Overwrite, cancellationToken);
+            var (files, bytes) = await ExtractAsync(zipPath, request.TargetDirectory, request.Overwrite, cancellationToken, request.Include);
             status?.Report($"Restored {files.Count} file(s).");
             return new RestoreResult(files, bytes, checksumVerified);
         }
@@ -150,6 +156,85 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         {
             TryDelete(work);
         }
+    }
+
+    private static bool IsIncluded(string entry, IReadOnlyCollection<string> include) =>
+        include.Any(i => i.EndsWith('/')
+            ? entry.StartsWith(i, StringComparison.OrdinalIgnoreCase)
+            : string.Equals(entry, i, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Returns the file list of a backup. Uses the small index file when present; older backups are downloaded
+    /// and their ZIP directory is read instead.
+    /// </summary>
+    public async Task<BackupIndex> GetIndexAsync(DestinationDefinition destination, string backupName, string? secret, CancellationToken cancellationToken)
+    {
+        var work = CreateWorkDirectory();
+        try
+        {
+            await using var target = destinationFactory.Create(destination);
+            var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (names.Contains(backupName + BackupIndex.Extension))
+            {
+                var path = Path.Combine(work, backupName + BackupIndex.Extension);
+                await target.DownloadAsync(backupName + BackupIndex.Extension, path, null, cancellationToken);
+                return await BackupIndex.ReadAsync(path, secret, cancellationToken);
+            }
+        }
+        finally
+        {
+            TryDelete(work);
+        }
+
+        // No index (older backups): download the backup and read the ZIP directory.
+        var temp = CreateWorkDirectory();
+        try
+        {
+            var zip = await DownloadAsZipAsync(destination, backupName, secret, temp, cancellationToken);
+            return BackupIndex.FromZip(zip, backupName);
+        }
+        finally
+        {
+            TryDelete(temp);
+        }
+    }
+
+    private async Task<string> DownloadAsZipAsync(DestinationDefinition destination, string backupName, string? secret, string folder, CancellationToken cancellationToken)
+    {
+        var request = new RestoreRequest(Path.Combine(folder, "unused"), secret) { Include = ["\0"] };
+        await using var target = destinationFactory.Create(destination);
+        var local = Path.Combine(folder, backupName);
+        var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (names.Contains(backupName))
+        {
+            await target.DownloadAsync(backupName, local, null, cancellationToken);
+        }
+        else
+        {
+            var manifestPath = local + ChunkManifest.Extension;
+            await target.DownloadAsync(backupName + ChunkManifest.Extension, manifestPath, null, cancellationToken);
+            var manifest = ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+            await ChunkedArchive.JoinAsync(manifest, async (chunk, ct) =>
+            {
+                var path = Path.Combine(folder, chunk.Name);
+                await target.DownloadAsync(chunk.Name, path, null, ct);
+                return path;
+            }, local, deleteChunks: true, cancellationToken);
+        }
+
+        if (!AesFileEncryptor.IsEncryptedFile(local))
+        {
+            return local;
+        }
+
+        if (string.IsNullOrEmpty(secret))
+        {
+            throw new UnauthorizedAccessException("This backup is encrypted. Enter the encryption password.");
+        }
+
+        var zip = Path.Combine(folder, "backup.zip");
+        await AesFileEncryptor.DecryptAsync(local, zip, secret, cancellationToken);
+        return zip;
     }
 
     private static bool TryResolveVolumeSet(string path, out string manifestPath)
@@ -171,7 +256,8 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         return false;
     }
 
-    internal static async Task<(IReadOnlyList<string> Files, long Bytes)> ExtractAsync(string zipPath, string targetDirectory, bool overwrite, CancellationToken cancellationToken)
+    internal static async Task<(IReadOnlyList<string> Files, long Bytes)> ExtractAsync(
+        string zipPath, string targetDirectory, bool overwrite, CancellationToken cancellationToken, IReadOnlyCollection<string>? include = null)
     {
         var root = Path.GetFullPath(targetDirectory);
         var rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
@@ -184,6 +270,11 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         var plan = new List<(ZipArchiveEntry Entry, string Path)>();
         foreach (var entry in zip.Entries)
         {
+            if (include is { Count: > 0 } && !IsIncluded(entry.FullName, include))
+            {
+                continue;
+            }
+
             var destination = Path.GetFullPath(Path.Combine(root, entry.FullName.Replace('\\', '/')));
             if (!destination.StartsWith(rootWithSeparator, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             {
