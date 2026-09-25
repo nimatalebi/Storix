@@ -92,7 +92,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Config as code (JSON job files with `${env:NAME}` secrets, `validate` and `apply` commands)
 - [ ] Plugin system for sources and destinations
 - [x] Circuit breaker per destination; job chains
-- [ ] Auto-update from GitHub Releases with signature check
+- [x] Auto-update from GitHub Releases with signature check
 
 ## P3: long term
 

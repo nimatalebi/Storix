@@ -33,6 +33,10 @@ internal sealed class MainForm : Form
     private readonly NumericUpDown _metricsPort = new() { Minimum = 1, Maximum = 65_535, Width = 100 };
     private readonly CheckBox _metricsRemote = new() { Text = "Allow access from other computers (needs a firewall rule)", AutoSize = true };
     private readonly TextBox _otlpEndpoint = new() { PlaceholderText = "http://otel-collector:4317" };
+    private readonly CheckBox _checkUpdates = new() { Text = "Check for new versions on GitHub once a day", AutoSize = true };
+    private readonly CheckBox _prereleaseUpdates = new() { Text = "Include pre-release versions", AutoSize = true };
+    private readonly ToolStripStatusLabel _updateStatus = new() { IsLink = true, Visible = false };
+    private Core.Updates.ReleaseInfo? _availableUpdate;
     private readonly CheckBox _smtpEnabled = new() { Text = "Enable e-mail notifications", AutoSize = true };
     private readonly TextBox _smtpHost = new();
     private readonly NumericUpDown _smtpPort = Ui.Number(1, 65_535, 587);
@@ -72,6 +76,14 @@ internal sealed class MainForm : Form
 
         var status = new StatusStrip();
         status.Items.Add(new ToolStripStatusLabel($"Data: {StorixPaths.DataDirectory}") { Spring = true, TextAlign = ContentAlignment.MiddleLeft });
+        _updateStatus.Click += (_, _) =>
+        {
+            if (_availableUpdate is not null)
+            {
+                ShowUpdate(_availableUpdate);
+            }
+        };
+        status.Items.Add(_updateStatus);
         status.Items.Add(_serviceStatus);
 
         Controls.Add(_tabs);
@@ -93,6 +105,7 @@ internal sealed class MainForm : Form
             RefreshServiceStatus();
             RefreshTray();
             _timer.Start();
+            _ = CheckForUpdatesAsync(manual: false);
         };
         Shown += (_, _) =>
         {
@@ -114,6 +127,57 @@ internal sealed class MainForm : Form
             }
         };
         FormClosed += (_, _) => _tray.Dispose();
+    }
+
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        try
+        {
+            var settings = _services.Settings.Get();
+            if (!manual)
+            {
+                var last = _services.Settings.GetValue("update-check");
+                if (!settings.CheckForUpdates
+                    || (DateTimeOffset.TryParse(last, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var at) && DateTimeOffset.UtcNow - at < TimeSpan.FromDays(1)))
+                {
+                    return;
+                }
+            }
+
+            _services.Settings.SetValue("update-check", DateTimeOffset.UtcNow.ToString("O"));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var release = await Core.Updates.UpdateChecker.CheckAsync(SharedHttp.Client, StorixInfo.Version, settings.IncludePrereleaseUpdates, timeout.Token);
+            if (release is null)
+            {
+                if (manual)
+                {
+                    Dialogs.Info(this, $"Storix {StorixInfo.Version} is the latest version.");
+                }
+
+                return;
+            }
+
+            _availableUpdate = release;
+            _updateStatus.Text = $"Update available: {release.Version}";
+            _updateStatus.Visible = true;
+            if (manual)
+            {
+                ShowUpdate(release);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                Dialogs.Error(this, $"Could not check for updates: {ex.Message}");
+            }
+        }
+    }
+
+    private void ShowUpdate(Core.Updates.ReleaseInfo release)
+    {
+        using var form = new UpdateForm(release);
+        form.ShowDialog(this);
     }
 
     private void RefreshTray()
@@ -169,6 +233,7 @@ internal sealed class MainForm : Form
         });
         help.DropDownItems.Add("Report a &bug", null, (_, _) => Links.Open(this, StorixInfo.NewIssueUrl));
         help.DropDownItems.Add("&GitHub repository", null, (_, _) => Links.Open(this, StorixInfo.RepositoryUrl));
+        help.DropDownItems.Add("Check for &updates...", null, async (_, _) => await CheckForUpdatesAsync(manual: true));
         help.DropDownItems.Add(new ToolStripSeparator());
         help.DropDownItems.Add("&About Storix", null, (_, _) =>
         {
@@ -760,6 +825,9 @@ internal sealed class MainForm : Form
         grid.Row("Metrics port", _metricsPort);
         grid.Row(null, _metricsRemote);
         grid.Row("OpenTelemetry endpoint (OTLP)", _otlpEndpoint);
+        grid.Row(null, new Label { Text = "Updates", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        grid.Row(null, _checkUpdates);
+        grid.Row(null, _prereleaseUpdates);
         grid.Row(null, Ui.Buttons(Ui.Button("Save settings", (_, _) => SaveSettings(), 130)));
         grid.Row(null, new Label { Text = "Restart the service to apply engine changes.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
@@ -790,6 +858,8 @@ internal sealed class MainForm : Form
         _metricsPort.Value = Math.Clamp(settings.Observability.MetricsPort, 1, 65_535);
         _metricsRemote.Checked = settings.Observability.MetricsRemoteAccess;
         _otlpEndpoint.Text = settings.Observability.OtlpEndpoint;
+        _checkUpdates.Checked = settings.CheckForUpdates;
+        _prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
         RefreshChannels();
     }
 
@@ -895,6 +965,8 @@ internal sealed class MainForm : Form
             Day = (DayOfWeek)_summaryDay.SelectedItem!,
             Hour = (int)_summaryHour.Value,
         };
+        settings.CheckForUpdates = _checkUpdates.Checked;
+        settings.IncludePrereleaseUpdates = _prereleaseUpdates.Checked;
         settings.Observability = new ObservabilitySettings
         {
             MetricsEnabled = _metricsEnabled.Checked,

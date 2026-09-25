@@ -25,6 +25,12 @@ public sealed class AppSettings
     public WeeklySummarySettings WeeklySummary { get; set; } = new();
 
     public ObservabilitySettings Observability { get; set; } = new();
+
+    /// <summary>Storix Manager looks for a newer release on GitHub once a day.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Also offer pre-release (beta) versions.</summary>
+    public bool IncludePrereleaseUpdates { get; set; }
 }
 
 public sealed class ObservabilitySettings
