@@ -259,7 +259,7 @@ internal sealed class MainForm : Form
 
     private void NewJob(BackupJob? template = null)
     {
-        using var editor = new JobEditorForm(template ?? new BackupJob(), _services.Destinations);
+        using var editor = new JobEditorForm(template ?? new BackupJob(), _services.Destinations, _jobList);
         if (editor.ShowDialog(this) == DialogResult.OK)
         {
             _services.Jobs.Save(editor.Job);
@@ -275,7 +275,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        using var editor = new JobEditorForm(job, _services.Destinations);
+        using var editor = new JobEditorForm(job, _services.Destinations, _jobList);
         if (editor.ShowDialog(this) == DialogResult.OK)
         {
             _services.Jobs.Save(editor.Job);

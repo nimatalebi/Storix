@@ -17,6 +17,8 @@ public enum RunTrigger
     Manual,
     /// <summary>A test restore (restore drill), not a backup.</summary>
     RestoreDrill,
+    /// <summary>Started because the job it follows (job chain) succeeded.</summary>
+    Chain,
 }
 
 public sealed class BackupRun

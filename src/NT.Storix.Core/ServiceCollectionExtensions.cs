@@ -31,7 +31,8 @@ public static class ServiceCollectionExtensions
             sp.GetServices<INotifier>(),
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BackupJobRunner>>(),
             SharedHttp.Client,
-            sp.GetRequiredService<SqlBackupRepository>()));
+            sp.GetRequiredService<SqlBackupRepository>(),
+            CircuitBreaker.Shared));
         services.AddSingleton<RestoreDrillRunner>();
         services.AddSingleton(sp => new BackupScheduler(
             sp.GetRequiredService<JobRepository>(),

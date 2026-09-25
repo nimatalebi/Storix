@@ -17,6 +17,8 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _name = new();
     private readonly TextBox _description = new();
     private readonly CheckBox _enabled = new() { Text = "Enabled (run on schedule)", AutoSize = true };
+    private readonly ComboBox _runAfter = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly IReadOnlyList<BackupJob> _otherJobs;
 
     // Schedule
     private readonly ComboBox _scheduleKind;
@@ -97,10 +99,11 @@ internal sealed class JobEditorForm : Form
     private readonly NumericUpDown _hookTimeout = Ui.Number(1, 86_400, 300);
     private readonly CheckBox _abortOnPre = new() { Text = "Fail the backup when the pre-command fails", AutoSize = true };
 
-    public JobEditorForm(BackupJob job, IDestinationFactory destinationFactory)
+    public JobEditorForm(BackupJob job, IDestinationFactory destinationFactory, IReadOnlyList<BackupJob>? otherJobs = null)
     {
         _destinationFactory = destinationFactory;
         Job = StorixJson.Clone(job);
+        _otherJobs = (otherJobs ?? []).Where(j => j.Id != job.Id).ToList();
 
         Text = $"Backup job - {job.Name}";
         StartPosition = FormStartPosition.CenterParent;
@@ -187,6 +190,17 @@ internal sealed class JobEditorForm : Form
         grid.Row("Name", _name);
         grid.Row("Description", _description);
         grid.Row(null, _enabled);
+        _runAfter.Items.Add("(no chain)");
+        _runAfter.Items.AddRange(_otherJobs.Cast<object>().ToArray());
+        _runAfter.Format += (_, e) => e.Value = e.ListItem is BackupJob j ? j.Name : e.ListItem;
+        grid.Row("Also run after job succeeds", _runAfter);
+        grid.Row(null, new Label
+        {
+            Text = "Job chain: this job starts automatically when the selected job finished successfully (e.g. copy files after a database dump). Use a Manual schedule if it should only run in the chain.",
+            AutoSize = true,
+            MaximumSize = new Size(640, 0),
+            ForeColor = SystemColors.GrayText,
+        });
         grid.Fill();
         return grid;
     }
@@ -473,6 +487,7 @@ internal sealed class JobEditorForm : Form
         _name.Text = Job.Name;
         _description.Text = Job.Description;
         _enabled.Checked = Job.Enabled;
+        _runAfter.SelectedItem = _otherJobs.FirstOrDefault(j => j.Id == Job.RunAfterJobId) ?? (object)"(no chain)";
 
         var s = Job.Schedule;
         _time.Value = DateTime.Today.Add(s.TimeOfDay);
@@ -556,6 +571,7 @@ internal sealed class JobEditorForm : Form
         Job.Name = _name.Text.Trim();
         Job.Description = NullIfEmpty(_description.Text);
         Job.Enabled = _enabled.Checked;
+        Job.RunAfterJobId = (_runAfter.SelectedItem as BackupJob)?.Id;
 
         ApplySchedule(Job.Schedule);
 

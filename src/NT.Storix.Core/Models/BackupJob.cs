@@ -13,6 +13,9 @@ public sealed class BackupJob
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Job chain: run this job right after the given job finished successfully.</summary>
+    public Guid? RunAfterJobId { get; set; }
+
     public ScheduleDefinition Schedule { get; set; } = new();
 
     public SourceDefinition Source { get; set; } = new();

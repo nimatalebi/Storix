@@ -144,7 +144,24 @@ public sealed class BackupScheduler(
     }
 
     private void Start(BackupJob job, RunTrigger trigger, CancellationToken cancellationToken) =>
-        Start(job, trigger.ToString(), ct => runner.RunAsync(job, trigger, ct), cancellationToken);
+        Start(job, trigger.ToString(), async ct =>
+        {
+            var run = await runner.RunAsync(job, trigger, ct);
+            if (run.Status == RunStatus.Succeeded)
+            {
+                StartFollowers(job, ct);
+            }
+        }, cancellationToken);
+
+    /// <summary>Job chains: starts the enabled jobs that run after <paramref name="job"/>.</summary>
+    internal void StartFollowers(BackupJob job, CancellationToken cancellationToken)
+    {
+        foreach (var follower in jobs.GetAll().Where(j => j.Enabled && j.RunAfterJobId == job.Id && j.Id != job.Id))
+        {
+            logger.LogInformation("Job {Job} succeeded; starting chained job {Follower}.", job.Name, follower.Name);
+            Start(follower, RunTrigger.Chain, cancellationToken);
+        }
+    }
 
     private void StartDrill(BackupJob job, CancellationToken cancellationToken)
     {

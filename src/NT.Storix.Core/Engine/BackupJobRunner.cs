@@ -23,7 +23,8 @@ public sealed class BackupJobRunner(
     IEnumerable<INotifier> notifiers,
     ILogger<BackupJobRunner> logger,
     HttpClient? http = null,
-    SqlBackupRepository? sqlBackups = null)
+    SqlBackupRepository? sqlBackups = null,
+    CircuitBreaker? circuitBreaker = null)
 {
     private readonly HttpClient _http = http ?? SharedHttp.Client;
 
@@ -155,13 +156,23 @@ public sealed class BackupJobRunner(
             var failures = new List<string>();
             foreach (var destination in destinations)
             {
+                if (circuitBreaker?.OpenUntil(destination.Id) is { } openUntil)
+                {
+                    var message = $"skipped: failed repeatedly, next attempt after {openUntil.ToLocalTime():HH:mm}";
+                    failures.Add($"{destination.Name}: {message}");
+                    log.Warn($"Destination '{destination.Name}' {message}.");
+                    continue;
+                }
+
                 try
                 {
                     await UploadAsync(job, destination, uploads, log, cancellationToken);
+                    circuitBreaker?.RecordSuccess(destination.Id);
                     await ApplyRetentionAsync(job, destination, fileName, log, cancellationToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    circuitBreaker?.RecordFailure(destination.Id);
                     failures.Add($"{destination.Name}: {ex.Message}");
                     log.Error($"Destination '{destination.Name}' failed.", ex);
                 }

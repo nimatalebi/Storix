@@ -91,7 +91,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] CLI: `storix jobs | run | history | cancel | drill | restore | verify | list-files | decrypt | export | import`
 - [x] Config as code (JSON job files with `${env:NAME}` secrets, `validate` and `apply` commands)
 - [ ] Plugin system for sources and destinations
-- [ ] Circuit breaker per destination; job chains
+- [x] Circuit breaker per destination; job chains
 - [ ] Auto-update from GitHub Releases with signature check
 
 ## P3: long term
