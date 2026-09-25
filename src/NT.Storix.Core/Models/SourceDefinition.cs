@@ -17,6 +17,8 @@ public enum SourceKind
     HyperV,
     /// <summary>Copy job: replicates the backups another job stored on one destination to this job's destinations (3-2-1).</summary>
     CopyOf,
+    /// <summary>A source added by a plugin (see <c>plugins</c> folder).</summary>
+    Plugin,
 }
 
 public sealed class SourceDefinition
@@ -45,6 +47,8 @@ public sealed class SourceDefinition
 
     public CopyJobSourceOptions CopyOf { get; set; } = new();
 
+    public Plugins.PluginOptions Plugin { get; set; } = new();
+
     /// <summary>Options object of the selected kind (for generic editors).</summary>
     public object ActiveOptions => Kind switch
     {
@@ -59,6 +63,7 @@ public sealed class SourceDefinition
         SourceKind.DockerVolumes => DockerVolumes,
         SourceKind.HyperV => HyperV,
         SourceKind.CopyOf => CopyOf,
+        SourceKind.Plugin => Plugin,
         _ => throw new NotSupportedException($"Source kind {Kind} is not supported."),
     };
 }

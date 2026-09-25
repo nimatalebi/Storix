@@ -82,6 +82,7 @@ Backup Agent
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Job chains** | Run a job automatically after another job succeeds (e.g. copy files after a database dump). A destination that fails repeatedly is skipped for 30 minutes (circuit breaker). |
 | **Incremental backups** | File jobs can back up only the files that changed (size or modification time) since the previous backup, with a new full backup every N days. Incremental archives are named `.inc.zip` and carry the list of deleted files. Restoring one restores its chain (full + incrementals) automatically, from a destination or from a folder; retention never deletes a backup that a kept incremental depends on. A failed or partial run makes the next backup a full one. |
+| **Plugins** | Add your own sources and destinations as .NET class libraries in the `plugins` folder; their secret settings are encrypted like built-in ones. See [docs/PLUGINS.md](docs/PLUGINS.md) and the sample plugin. |
 | **Copy jobs (3-2-1)** | A copy job replicates another job's backups, still encrypted, from one of its destinations to other destinations (e.g. NAS → S3). Only missing backups are copied, each is checked against its SHA-256 first, and the copy job has its own retention. Chain it to the source job to copy right after each backup. |
 | **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
 | **Control** | Run now, pause/resume or cancel a running backup, hold uploads on metered connections, and an early free-space check based on the previous backup size. |
@@ -135,10 +136,11 @@ The manager and the service share only the SQLite database. The manager saves jo
 | Project | Description |
 |---|---|
 | `src/NT.Storix.Core` | The engine: models, scheduling (Cronos), sources, processing, destinations, SQLite repositories, secret protection, import/export. |
-| `src/NT.Storix.Service` | Worker Service host that runs as the Windows service (`Storix.Service.exe`). Logs with Serilog to `%ProgramData%\Storix\logs`. |
+| `src/NT.Storix.Service` | Worker Service host that runs as the Windows service (`Storix.Service.exe`) or a systemd unit on Linux. Logs with Serilog to `%ProgramData%\Storix\logs` (`/var/lib/storix/logs`). |
 | `src/NT.Storix.WinForms` | Storix Manager (`Storix.Manager.exe`), the desktop UI. |
 | `src/NT.Storix.Cli` | `storix.exe` command-line tool (standalone restore, jobs, config as code). |
 | `tests/NT.Storix.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export, restore and the full pipeline. |
+| `samples/NT.Storix.Plugins.Sample` | Example source and destination plugin. |
 | `tests/NT.Storix.IntegrationTests` | Docker-based tests (Testcontainers) against real SFTP, FTP, SQL Server and MongoDB servers. |
 
 All namespaces start with `NT.` (for example `NT.Storix.Core.Engine`).

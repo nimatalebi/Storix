@@ -477,6 +477,11 @@ public sealed partial class BackupJobRunner(
             errors.Add("At least one enabled destination is required.");
         }
 
+        foreach (var destination in job.Destinations.Where(d => d.Enabled && d.Kind == DestinationKind.Plugin))
+        {
+            errors.AddRange(Plugins.PluginRegistry.GetValidationErrors(destination.Plugin, destination: true).Select(e => $"{destination.Name}: {e}"));
+        }
+
         switch (job.Source.Kind)
         {
             case SourceKind.Files when job.Source.Files.Paths.Count == 0:
@@ -487,6 +492,9 @@ public sealed partial class BackupJobRunner(
                 break;
             case SourceKind.MongoDb when string.IsNullOrWhiteSpace(job.Source.MongoDb.ConnectionString):
                 errors.Add("MongoDB connection string is required.");
+                break;
+            case SourceKind.Plugin:
+                errors.AddRange(Plugins.PluginRegistry.GetValidationErrors(job.Source.Plugin, destination: false));
                 break;
             case SourceKind.CopyOf when string.IsNullOrWhiteSpace(job.Source.CopyOf.Job):
                 errors.Add("Choose the job whose backups are copied.");

@@ -840,6 +840,10 @@ internal sealed class JobEditorForm : Form
             SourceKind.HyperV => "Virtual machines are exported with Export-VM (running VMs from a production checkpoint). Import them again with Import-VM.",
             SourceKind.CopyOf => "Copy job (3-2-1 rule): copies the backups of another job, as they are (still encrypted), from one of its destinations to this job's destinations. " +
                                  "This job's retention decides how many copies are kept; compression and encryption settings are not used. Tip: set the schedule to run after the source job.",
+            SourceKind.Plugin => "Plugin source. Installed: " +
+                                 (NT.Storix.Core.Plugins.PluginRegistry.Sources.Count == 0
+                                     ? "none (put plugin DLLs in the 'plugins' folder next to Storix)."
+                                     : string.Join(", ", NT.Storix.Core.Plugins.PluginRegistry.Sources.Select(p => $"{p.Id} ({p.DisplayName}: {string.Join(", ", p.Settings.Select(s => s.Name + (s.Secret ? " [secret]" : string.Empty)))})"))),
             _ => string.Empty,
         };
 

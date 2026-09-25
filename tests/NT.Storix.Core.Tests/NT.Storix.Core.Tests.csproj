@@ -20,6 +20,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NT.Storix.Core\NT.Storix.Core.csproj" />
     <ProjectReference Include="..\..\src\NT.Storix.Cli\NT.Storix.Cli.csproj" />
+    <!-- Built but not referenced: the plugin tests load it from disk like the service does. -->
+    <ProjectReference Include="..\..\samples\NT.Storix.Plugins.Sample\NT.Storix.Plugins.Sample.csproj" ReferenceOutputAssembly="false" OutputItemType="SamplePlugin" />
   </ItemGroup>
+
+  <Target Name="CopySamplePlugin" AfterTargets="Build">
+    <Copy SourceFiles="@(SamplePlugin)" DestinationFolder="$(OutDir)sample-plugin" />
+  </Target>
 
 </Project>

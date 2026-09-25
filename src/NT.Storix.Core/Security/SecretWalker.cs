@@ -42,6 +42,17 @@ public static class SecretWalker
                 continue;
             }
 
+            // Secret dictionaries (plugin secrets): every value is a secret.
+            if (property.IsDefined(typeof(SecretAttribute)) && property.GetValue(node) is IDictionary<string, string?> secrets)
+            {
+                foreach (var key in secrets.Keys.ToList())
+                {
+                    secrets[key] = transform(secrets[key]);
+                }
+
+                continue;
+            }
+
             if (property.PropertyType == typeof(string))
             {
                 if (property.CanWrite && property.IsDefined(typeof(SecretAttribute)))

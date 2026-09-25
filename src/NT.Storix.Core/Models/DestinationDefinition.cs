@@ -15,6 +15,8 @@ public enum DestinationKind
     OneDrive,
     /// <summary>Any of the 40+ providers supported by rclone.</summary>
     Rclone,
+    /// <summary>A destination added by a plugin (see <c>plugins</c> folder).</summary>
+    Plugin,
 }
 
 public sealed class DestinationDefinition
@@ -50,6 +52,8 @@ public sealed class DestinationDefinition
 
     public RcloneOptions Rclone { get; set; } = new();
 
+    public Plugins.PluginOptions Plugin { get; set; } = new();
+
     public object ActiveOptions => Kind switch
     {
         DestinationKind.LocalFolder => LocalFolder,
@@ -62,6 +66,7 @@ public sealed class DestinationDefinition
         DestinationKind.Dropbox => Dropbox,
         DestinationKind.OneDrive => OneDrive,
         DestinationKind.Rclone => Rclone,
+        DestinationKind.Plugin => Plugin,
         _ => throw new NotSupportedException($"Destination kind {Kind} is not supported."),
     };
 
