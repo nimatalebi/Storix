@@ -1,0 +1,23 @@
+## .NET / Visual Studio
+bin/
+obj/
+out/
+publish/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.rsuser
+*.nupkg
+*.snupkg
+
+## Local runtime data
+*.db
+*.db-shm
+*.db-wal
+logs/
