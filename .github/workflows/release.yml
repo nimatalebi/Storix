@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to package (without the leading v)
+        required: true
+        default: 0.0.0-test
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '${{ inputs.version }}' }
+          "value=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test Storix.sln -c Release
+
+      - name: Package
+        shell: pwsh
+        env:
+          STORIX_SIGN_CERT: ${{ secrets.STORIX_SIGN_CERT }}
+          STORIX_SIGN_PASSWORD: ${{ secrets.STORIX_SIGN_PASSWORD }}
+        run: ./build/package.ps1 -Version ${{ steps.version.outputs.value }} -Output artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storix-${{ steps.version.outputs.value }}
+          path: |
+            artifacts/*.msi
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt
+
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*.msi
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt

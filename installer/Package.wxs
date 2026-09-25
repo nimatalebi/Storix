@@ -1,0 +1,76 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="Storix"
+           Manufacturer="Storix Contributors"
+           Version="$(ProductVersion)"
+           UpgradeCode="4bc9a583-4b7f-436e-8eb8-ebb4afbb0039"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <SummaryInformation Description="Storix backup agent" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Storix is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/nimatalebi/Storix" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/nimatalebi/Storix/issues" />
+    <Property Id="ARPCONTACT" Value="nimatweb@gmail.com" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Storix" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ShortcutFolder" Name="Storix" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Storix" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="ServiceComponent" />
+      <ComponentRef Id="ShortcutComponent" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+  </Package>
+
+  <Fragment>
+    <!-- Everything from the publish folder except the service executable (installed below). -->
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="!(bindpath.publish)**">
+        <Exclude Files="!(bindpath.publish)Storix.Service.exe" />
+        <Exclude Files="!(bindpath.publish)**.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="ServiceComponent" Directory="INSTALLFOLDER" Bitness="always64">
+      <File Id="StorixServiceExe" Source="!(bindpath.publish)Storix.Service.exe" KeyPath="yes" />
+      <ServiceInstall Id="StorixServiceInstall"
+                      Name="Storix"
+                      DisplayName="Storix Backup Agent"
+                      Description="Storix scheduled backup agent (files, SQL Server, MongoDB)."
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Account="LocalSystem">
+        <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall="yes" />
+        <util:ServiceConfig FirstFailureActionType="restart"
+                            SecondFailureActionType="restart"
+                            ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="60"
+                            ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <ServiceControl Id="StorixServiceControl" Name="Storix" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+    </Component>
+
+    <Component Id="ShortcutComponent" Directory="ShortcutFolder" Guid="*">
+      <Shortcut Id="ManagerShortcut"
+                Name="Storix Manager"
+                Description="Configure Storix backup jobs"
+                Target="[INSTALLFOLDER]Storix.Manager.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveShortcutFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="Software\Storix" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

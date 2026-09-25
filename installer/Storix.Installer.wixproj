@@ -1,0 +1,25 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Builds the Storix MSI from a publish folder (Windows only):
+      dotnet build installer/Storix.Installer.wixproj -c Release -p:PublishDir=<folder> -p:ProductVersion=1.2.3
+    build/package.ps1 does the publish + MSI steps together.
+  -->
+  <PropertyGroup>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <OutputName>Storix-$(ProductVersion)-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <DefineConstants>ProductVersion=$(ProductVersion)</DefineConstants>
+    <!-- Keep central package management out of the WiX project. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <EnableWindowsTargeting>false</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <BindPath Include="$(PublishDir)" BindName="publish" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+</Project>
