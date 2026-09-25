@@ -165,7 +165,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
 
     private static string CreateWorkDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), "storix-restore", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(Path.GetTempPath(), "storix-restore-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
     }

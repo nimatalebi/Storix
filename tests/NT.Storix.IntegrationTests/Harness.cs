@@ -134,7 +134,9 @@ internal sealed class Harness : IDisposable
     {
         if (!OperatingSystem.IsWindows())
         {
-            File.SetUnixFileMode(path, (UnixFileMode)0b111_111_111);
+            // rwxrwxrwx + setgid: files created by container users (e.g. SQL Server writes .bak files with mode 0640)
+            // inherit the folder's group, so the test process can still read them.
+            File.SetUnixFileMode(path, (UnixFileMode)0b111_111_111 | UnixFileMode.SetGroup);
         }
     }
 }
