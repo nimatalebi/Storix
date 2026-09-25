@@ -40,9 +40,7 @@ function Invoke-Sign([string[]]$Files) {
 
 Invoke-Sign @((Join-Path $publish 'Storix.Service.exe'), (Join-Path $publish 'Storix.Manager.exe'), (Join-Path $publish 'NT.Storix.Core.dll'))
 
-dotnet build (Join-Path $root 'installer/Storix.Installer.wixproj') -c Release -p:PublishDir="$publish\" -p:ProductVersion=$Version -o $Output
-if ($LASTEXITCODE -ne 0) { throw 'Building the MSI failed.' }
-$msi = Join-Path $Output "Storix-$Version-x64.msi"
+
 Invoke-Sign @($msi)
 
 $zip = Join-Path $Output "Storix-$Version-x64-portable.zip"
