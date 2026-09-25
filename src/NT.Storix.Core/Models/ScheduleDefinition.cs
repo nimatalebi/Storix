@@ -24,4 +24,9 @@ public sealed class ScheduleDefinition
 
     /// <summary>Windows or IANA time zone id. Empty means the machine's local time zone.</summary>
     public string? TimeZoneId { get; set; }
+
+    /// <summary>
+    /// When the service starts and a scheduled run was missed (machine off, service stopped), run the job once.
+    /// </summary>
+    public bool CatchUpMissedRuns { get; set; } = true;
 }

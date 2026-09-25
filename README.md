@@ -57,7 +57,7 @@ Backup Agent
 | **Retention** | "Keep last N" and/or "delete older than N days", applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
 | **Large files** | Everything is streamed. ZIP64 is supported. No step loads a whole file into memory. |
-| **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. The service is set to restart automatically if it fails. |
+| **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. A scheduled run that was missed while the machine or service was off runs once at startup (can be turned off per job). The service restarts automatically if it fails. |
 | **Partial upload cleanup** | Leftover `.partial` files from interrupted runs are deleted from destinations. |
 | **Database consistency** | SQL Server: `BACKUP DATABASE … WITH COPY_ONLY, CHECKSUM`, so your existing backup chain is left intact. MongoDB: optional `--oplog` for a point-in-time dump of a replica set. |
 | **Backup verification** | Optional `RESTORE VERIFYONLY`. Every archive can be re-read (and decrypted) before upload. The size of each uploaded file is checked. |

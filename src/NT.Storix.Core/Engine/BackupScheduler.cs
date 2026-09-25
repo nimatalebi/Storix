@@ -33,6 +33,15 @@ public sealed class BackupScheduler(
         logger.LogInformation("Scheduler started (max {Concurrency} concurrent job(s)).", appSettings.MaxConcurrentJobs);
 
         var lastTick = DateTimeOffset.UtcNow;
+        try
+        {
+            CatchUp(lastTick, stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Missed-run catch-up failed.");
+        }
+
         using var timer = new PeriodicTimer(TickInterval);
         try
         {
@@ -137,8 +146,29 @@ public sealed class BackupScheduler(
         }, CancellationToken.None);
     }
 
+    /// <summary>Starts once every enabled job whose scheduled run was missed while the service was not running.</summary>
+    internal void CatchUp(DateTimeOffset nowUtc, CancellationToken cancellationToken)
+    {
+        foreach (var job in jobs.GetAll().Where(j => j.Enabled))
+        {
+            try
+            {
+                var last = runs.GetLast(job.Id);
+                if (ScheduleCalculator.HasMissedRun(job.Schedule, last?.StartedAt, nowUtc))
+                {
+                    logger.LogInformation("Job {Job} missed a scheduled run since {LastRun}; running it now.", job.Name, last!.StartedAt);
+                    Start(job, RunTrigger.Schedule, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not evaluate missed runs for job {Job}.", job.Name);
+            }
+        }
+    }
+
     /// <summary>Crash recovery: closes runs left open by a previous process and removes their temporary files.</summary>
-    private void Recover(AppSettings appSettings)
+    internal void Recover(AppSettings appSettings)
     {
         var interrupted = runs.MarkInterrupted();
         if (interrupted > 0)

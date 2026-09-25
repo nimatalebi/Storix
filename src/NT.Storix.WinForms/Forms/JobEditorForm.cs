@@ -24,6 +24,7 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _cron = new();
     private readonly ComboBox _timeZone = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Label _nextRuns = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
+    private readonly CheckBox _catchUp = new() { Text = "Run a missed backup when the computer or service starts again", AutoSize = true };
 
     // Source
     private readonly ComboBox _sourceKind;
@@ -176,6 +177,7 @@ internal sealed class JobEditorForm : Form
         });
         grid.Row("Time zone", _timeZone);
         grid.Row("Next runs", _nextRuns);
+        grid.Row(null, _catchUp);
         grid.Fill();
 
         _scheduleKind.SelectedIndexChanged += (_, _) => UpdateScheduleUi();
@@ -345,6 +347,7 @@ internal sealed class JobEditorForm : Form
         }
 
         _cron.Text = s.CronExpression;
+        _catchUp.Checked = s.CatchUpMissedRuns;
         _timeZone.SelectedItem = string.IsNullOrWhiteSpace(s.TimeZoneId) || !_timeZone.Items.Contains(s.TimeZoneId) ? "(Local time)" : s.TimeZoneId;
 
         var files = Job.Source.Files;
@@ -439,6 +442,7 @@ internal sealed class JobEditorForm : Form
         schedule.DaysOfWeek = _days.Where(d => d.Checked).Select(d => (DayOfWeek)d.Tag!).ToList();
         schedule.CronExpression = NullIfEmpty(_cron.Text);
         schedule.TimeZoneId = _timeZone.SelectedIndex <= 0 ? null : (string)_timeZone.SelectedItem!;
+        schedule.CatchUpMissedRuns = _catchUp.Checked;
     }
 
     private void UpdateScheduleUi()

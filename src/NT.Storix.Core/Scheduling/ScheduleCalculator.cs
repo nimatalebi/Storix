@@ -65,6 +65,21 @@ public static class ScheduleCalculator
         return Parse(cron).GetNextOccurrence(fromUtc, zone, inclusive: false);
     }
 
+    /// <summary>
+    /// True when at least one occurrence fell between the last run and now, i.e. a run was missed.
+    /// Without a previous run nothing is considered missed.
+    /// </summary>
+    public static bool HasMissedRun(ScheduleDefinition schedule, DateTimeOffset? lastRunUtc, DateTimeOffset nowUtc)
+    {
+        if (!schedule.CatchUpMissedRuns || lastRunUtc is null)
+        {
+            return false;
+        }
+
+        var next = GetNextOccurrence(schedule, lastRunUtc.Value);
+        return next is not null && next <= nowUtc;
+    }
+
     public static string Describe(ScheduleDefinition schedule) => schedule.Kind switch
     {
         ScheduleKind.Manual => "Manual",

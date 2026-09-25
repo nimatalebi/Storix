@@ -19,8 +19,9 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 - [x] Build and test on Windows in CI; warnings are errors
 - [x] Integration tests with Testcontainers: atmoz/sftp, FTP, SQL Server, MongoDB replica set (backup → restore → byte compare)
-- [ ] Fault-injection tests: kill the service mid-archive or mid-upload, drop the network, fill the disk, corrupt a file
-- [ ] Scheduler tests around DST changes and time zones; optional catch-up of missed runs
+- [x] Fault-injection tests: service killed mid-run, network drop + resume, disk full, cancellation, corrupted/truncated archives
+- [x] Large-file test above 4 GB (ZIP64 + encryption, opt-in with `STORIX_LARGE_TESTS=1`) and files that change while archived
+- [x] Scheduler tests around DST changes and time zones; optional catch-up of missed runs
 - [ ] MSI installer (WiX), GitHub Releases, signed binaries
 
 ## P1: missing essentials
