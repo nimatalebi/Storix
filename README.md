@@ -54,7 +54,7 @@ Backup Agent
 | **Retry** | The database dump and each upload are retried with exponential back-off (attempt count, first delay and multiplier are set per job). |
 | **Checksum** | A SHA-256 hash is saved in the history and uploaded as a `sha256sum`-compatible `.sha256` file next to each archive. |
 | **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations. Encryption streams data, so large files are fine. |
-| **Retention** | "Keep last N" and/or "delete older than N days", applied on every destination. The newest backup is never deleted. |
+| **Retention** | "Keep last N" and/or "delete older than N days", plus long-term GFS rules (keep daily/weekly/monthly/yearly), applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
 | **Large files** | Everything is streamed. ZIP64 is supported. No step loads a whole file into memory. |
 | **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. A scheduled run that was missed while the machine or service was off runs once at startup (can be turned off per job). The service restarts automatically if it fails. |

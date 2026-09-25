@@ -61,6 +61,10 @@ internal sealed class JobEditorForm : Form
     // Retention / retry / notifications
     private readonly NumericUpDown _keepLast = Ui.Number(0, 10_000);
     private readonly NumericUpDown _keepDays = Ui.Number(0, 36_500);
+    private readonly NumericUpDown _keepDaily = Ui.Number(0, 3_650);
+    private readonly NumericUpDown _keepWeekly = Ui.Number(0, 520);
+    private readonly NumericUpDown _keepMonthly = Ui.Number(0, 1_200);
+    private readonly NumericUpDown _keepYearly = Ui.Number(0, 100);
     private readonly NumericUpDown _maxAttempts = Ui.Number(1, 20);
     private readonly NumericUpDown _retryDelay = Ui.Number(0, 3_600);
     private readonly NumericUpDown _backoff = Ui.Number(1, 10, decimals: 1);
@@ -322,6 +326,11 @@ internal sealed class JobEditorForm : Form
         grid.Row(null, new Label { Text = "Retention (applied on every destination after a successful upload)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         grid.Row("Keep last N backups (0 = unlimited)", _keepLast);
         grid.Row("Delete older than N days (0 = never)", _keepDays);
+        grid.Row(null, new Label { Text = "Long-term (GFS): these backups are kept even when the rules above would delete them.", AutoSize = true, ForeColor = SystemColors.GrayText });
+        grid.Row("Daily backups to keep", _keepDaily);
+        grid.Row("Weekly backups to keep", _keepWeekly);
+        grid.Row("Monthly backups to keep", _keepMonthly);
+        grid.Row("Yearly backups to keep", _keepYearly);
         grid.Row(null, new Label { Text = "The most recent backup is never deleted.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Row(null, new Label { Text = "Retry (database dump and each upload)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         grid.Row("Max attempts", _maxAttempts);
@@ -420,6 +429,10 @@ internal sealed class JobEditorForm : Form
 
         _keepLast.Value = Math.Clamp(Job.Retention.KeepLast, 0, 10_000);
         _keepDays.Value = Math.Clamp(Job.Retention.KeepDays, 0, 36_500);
+        _keepDaily.Value = Math.Clamp(Job.Retention.KeepDaily, 0, 3_650);
+        _keepWeekly.Value = Math.Clamp(Job.Retention.KeepWeekly, 0, 520);
+        _keepMonthly.Value = Math.Clamp(Job.Retention.KeepMonthly, 0, 1_200);
+        _keepYearly.Value = Math.Clamp(Job.Retention.KeepYearly, 0, 100);
         _maxAttempts.Value = Math.Clamp(Job.Retry.MaxAttempts, 1, 20);
         _retryDelay.Value = Math.Clamp(Job.Retry.InitialDelaySeconds, 0, 3_600);
         _backoff.Value = (decimal)Math.Clamp(Job.Retry.BackoffMultiplier, 1, 10);
@@ -473,6 +486,10 @@ internal sealed class JobEditorForm : Form
 
         Job.Retention.KeepLast = (int)_keepLast.Value;
         Job.Retention.KeepDays = (int)_keepDays.Value;
+        Job.Retention.KeepDaily = (int)_keepDaily.Value;
+        Job.Retention.KeepWeekly = (int)_keepWeekly.Value;
+        Job.Retention.KeepMonthly = (int)_keepMonthly.Value;
+        Job.Retention.KeepYearly = (int)_keepYearly.Value;
         Job.Retry.MaxAttempts = (int)_maxAttempts.Value;
         Job.Retry.InitialDelaySeconds = (int)_retryDelay.Value;
         Job.Retry.BackoffMultiplier = (double)_backoff.Value;

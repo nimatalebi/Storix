@@ -42,7 +42,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Cancel a running job from the UI
 - [ ] Pause and resume a running job
 - [x] Free-space check that fails early, with an estimate (staging and local destinations)
-- [ ] GFS retention (daily/weekly/monthly/yearly)
+- [x] GFS retention (daily/weekly/monthly/yearly)
 - [ ] Key management: printable recovery sheet, optional key file
 
 ## P2: new ideas

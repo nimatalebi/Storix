@@ -7,6 +7,22 @@ public sealed class RetentionPolicy
 
     /// <summary>Delete backups older than this many days. 0 means unlimited.</summary>
     public int KeepDays { get; set; }
+
+    // Grandfather-father-son: backups protected here are kept even when the rules above would delete them.
+
+    /// <summary>Keep the newest backup of each of the last N days that have backups.</summary>
+    public int KeepDaily { get; set; }
+
+    /// <summary>Keep the newest backup of each of the last N ISO weeks that have backups.</summary>
+    public int KeepWeekly { get; set; }
+
+    /// <summary>Keep the newest backup of each of the last N months that have backups.</summary>
+    public int KeepMonthly { get; set; }
+
+    /// <summary>Keep the newest backup of each of the last N years that have backups.</summary>
+    public int KeepYearly { get; set; }
+
+    public bool UsesGfs => KeepDaily > 0 || KeepWeekly > 0 || KeepMonthly > 0 || KeepYearly > 0;
 }
 
 public sealed class RetryPolicy
