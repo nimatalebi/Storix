@@ -1,5 +1,7 @@
 using NT.Storix.Core;
 using NT.Storix.Service;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 
 Directory.CreateDirectory(StorixPaths.LogsDirectory);
@@ -23,6 +25,25 @@ try
     builder.Services.AddSerilog();
     builder.Services.AddStorixCore();
     builder.Services.AddHostedService<StorixWorker>();
+    builder.Services.AddHostedService<MetricsServer>();
+
+    // Warnings and errors also go to the Windows Event Log (Application log, source "Storix").
+    if (OperatingSystem.IsWindows())
+    {
+        EventLogSetup.Add(builder.Logging);
+    }
+
+    // OpenTelemetry traces (backup runs and uploads) when an OTLP endpoint is configured.
+    var otlp = new NT.Storix.Core.Persistence.SettingsRepository(
+        new NT.Storix.Core.Persistence.StorixDatabase(StorixPaths.DatabasePath), new NT.Storix.Core.Security.MachineSecretProtector()).Get().Observability.OtlpEndpoint;
+    if (!string.IsNullOrWhiteSpace(otlp))
+    {
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("storix", serviceVersion: NT.Storix.Core.StorixInfo.Version))
+            .WithTracing(tracing => tracing
+                .AddSource(NT.Storix.Core.Monitoring.StorixTelemetry.SourceName)
+                .AddOtlpExporter(exporter => exporter.Endpoint = new Uri(otlp)));
+    }
 
     // Give running backups time to stop gracefully (they are marked as interrupted otherwise).
     builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(45));

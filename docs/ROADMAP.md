@@ -81,7 +81,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Telegram / Bale / Slack / Teams / Discord notifications
 - [x] Weekly summary e-mail (and chat channels)
 - [ ] Dashboard: storage per destination, growth trend, success rate
-- [ ] Prometheus metrics, Windows Event Log entries, OpenTelemetry
+- [x] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode
 - [x] Job templates and dry-run mode
 - [x] First-run wizard

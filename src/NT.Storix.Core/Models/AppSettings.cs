@@ -23,6 +23,22 @@ public sealed class AppSettings
     public List<NotificationChannel> Channels { get; set; } = [];
 
     public WeeklySummarySettings WeeklySummary { get; set; } = new();
+
+    public ObservabilitySettings Observability { get; set; } = new();
+}
+
+public sealed class ObservabilitySettings
+{
+    /// <summary>Expose Prometheus metrics on http://localhost:{MetricsPort}/metrics.</summary>
+    public bool MetricsEnabled { get; set; }
+
+    public int MetricsPort { get; set; } = 9464;
+
+    /// <summary>Also listen on all network interfaces (for a remote Prometheus server); needs a firewall rule.</summary>
+    public bool MetricsRemoteAccess { get; set; }
+
+    /// <summary>OpenTelemetry OTLP endpoint for traces, e.g. http://otel-collector:4317. Empty = off.</summary>
+    public string? OtlpEndpoint { get; set; }
 }
 
 public sealed class WeeklySummarySettings

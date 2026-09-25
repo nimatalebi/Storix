@@ -28,6 +28,10 @@ internal sealed class MainForm : Form
     private readonly NumericUpDown _historyDays = Ui.Number(0, 36_500);
     private readonly CheckBox _requireConfirmation = new() { Text = "Ask for my Windows password before restores, deletions, exports with secrets and service changes", AutoSize = true };
     private readonly CheckBox _pauseMetered = new() { Text = "Hold uploads while the internet connection is metered", AutoSize = true };
+    private readonly CheckBox _metricsEnabled = new() { Text = "Expose Prometheus metrics (/metrics)", AutoSize = true };
+    private readonly NumericUpDown _metricsPort = new() { Minimum = 1, Maximum = 65_535, Width = 100 };
+    private readonly CheckBox _metricsRemote = new() { Text = "Allow access from other computers (needs a firewall rule)", AutoSize = true };
+    private readonly TextBox _otlpEndpoint = new() { PlaceholderText = "http://otel-collector:4317" };
     private readonly CheckBox _smtpEnabled = new() { Text = "Enable e-mail notifications", AutoSize = true };
     private readonly TextBox _smtpHost = new();
     private readonly NumericUpDown _smtpPort = Ui.Number(1, 65_535, 587);
@@ -623,6 +627,11 @@ internal sealed class MainForm : Form
             Ui.Button("Add...", (_, _) => AddChannel()),
             Ui.Button("Edit...", (_, _) => EditChannel()),
             Ui.Button("Remove", (_, _) => RemoveChannel())));
+        grid.Row(null, new Label { Text = "Monitoring", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        grid.Row(null, _metricsEnabled);
+        grid.Row("Metrics port", _metricsPort);
+        grid.Row(null, _metricsRemote);
+        grid.Row("OpenTelemetry endpoint (OTLP)", _otlpEndpoint);
         grid.Row(null, Ui.Buttons(Ui.Button("Save settings", (_, _) => SaveSettings(), 130)));
         grid.Row(null, new Label { Text = "Restart the service to apply engine changes.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
@@ -649,6 +658,10 @@ internal sealed class MainForm : Form
         _summaryRecipients.Text = settings.WeeklySummary.Recipients;
         _summaryDay.SelectedItem = settings.WeeklySummary.Day;
         _summaryHour.Value = Math.Clamp(settings.WeeklySummary.Hour, 0, 23);
+        _metricsEnabled.Checked = settings.Observability.MetricsEnabled;
+        _metricsPort.Value = Math.Clamp(settings.Observability.MetricsPort, 1, 65_535);
+        _metricsRemote.Checked = settings.Observability.MetricsRemoteAccess;
+        _otlpEndpoint.Text = settings.Observability.OtlpEndpoint;
         RefreshChannels();
     }
 
@@ -753,6 +766,13 @@ internal sealed class MainForm : Form
             Recipients = string.IsNullOrWhiteSpace(_summaryRecipients.Text) ? null : _summaryRecipients.Text.Trim(),
             Day = (DayOfWeek)_summaryDay.SelectedItem!,
             Hour = (int)_summaryHour.Value,
+        };
+        settings.Observability = new ObservabilitySettings
+        {
+            MetricsEnabled = _metricsEnabled.Checked,
+            MetricsPort = (int)_metricsPort.Value,
+            MetricsRemoteAccess = _metricsRemote.Checked,
+            OtlpEndpoint = string.IsNullOrWhiteSpace(_otlpEndpoint.Text) ? null : _otlpEndpoint.Text.Trim(),
         };
 
         _services.Audit.Add("settings.update", "settings", AuditDiff.Describe(_services.Settings.Get(), settings));

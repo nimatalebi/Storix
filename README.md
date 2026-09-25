@@ -78,6 +78,7 @@ Backup Agent
 | **SQL Server chains** | Full, differential and transaction-log backups. LSNs are recorded for every backup, and **Tools → SQL Server point-in-time restore** rebuilds the chain and restores to the latest state or to any moment (`STOPAT`). |
 | **Backup verification** | Optional `RESTORE VERIFYONLY`. Every archive can be re-read (and decrypted) before upload. The size of each uploaded file is checked. |
 | **Notifications & monitoring** | E-mail, webhooks (JSON, HMAC-signed), Telegram, Bale, Slack, Teams and Discord. A dead man's switch alerts when a job has no successful backup for N hours. healthchecks.io and Uptime Kuma pings are supported. |
+| **Observability** | Optional Prometheus `/metrics` endpoint (last success, size, duration and status per job), Windows Event Log entries for warnings and errors, and OpenTelemetry traces exported over OTLP. |
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Job chains** | Run a job automatically after another job succeeds (e.g. copy files after a database dump). A destination that fails repeatedly is skipped for 30 minutes (circuit breaker). |
 | **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
@@ -313,6 +314,21 @@ The manager also offers **New from template** (SQL Server nightly to S3, log bac
 **File → Import configuration** loads the file. A job with the same id is replaced.
 
 ---
+
+### Metrics and tracing
+
+Metrics and tracing are configured under **Settings → Monitoring** in Storix Manager, or in the `observability` section of an exported configuration:
+
+```json
+"observability": {
+  "metricsEnabled": true,
+  "metricsPort": 9464,
+  "metricsRemoteAccess": false,
+  "otlpEndpoint": "http://localhost:4317"
+}
+```
+
+With metrics enabled the service serves Prometheus text format at `http://localhost:9464/metrics`. Remote access needs a URL ACL (`netsh http add urlacl url=http://+:9464/ user=...`) when the service does not run as LocalSystem. Warnings and errors are also written to the Windows Event Log under the source `Storix`. When `otlpEndpoint` is set, each backup run and upload is exported as an OpenTelemetry trace (activity source `NT.Storix`); restart the service after changing it.
 
 ## Security notes
 

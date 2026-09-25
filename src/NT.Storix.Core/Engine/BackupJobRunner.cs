@@ -32,6 +32,10 @@ public sealed class BackupJobRunner(
     {
         var run = new BackupRun { JobId = job.Id, JobName = job.Name, Trigger = trigger, StartedAt = DateTimeOffset.UtcNow };
         runs.Insert(run);
+        using var activity = StorixTelemetry.Source.StartActivity("backup");
+        activity?.SetTag("storix.job", job.Name);
+        activity?.SetTag("storix.job_id", job.Id.ToString());
+        activity?.SetTag("storix.trigger", trigger.ToString());
 
         var log = new RunLog(logger, job.Name);
         await PingAsync(job, HealthCheckSignal.Start, null, log);
@@ -229,6 +233,9 @@ public sealed class BackupJobRunner(
             log.Info($"Finished with status {run.Status} in {run.Duration:hh\\:mm\\:ss}.");
             run.Log = log.ToString();
             runs.Complete(run);
+            activity?.SetTag("storix.status", run.Status.ToString());
+            activity?.SetTag("storix.size_bytes", run.SizeBytes);
+            activity?.SetStatus(run.Status == RunStatus.Succeeded ? System.Diagnostics.ActivityStatusCode.Ok : System.Diagnostics.ActivityStatusCode.Error, run.Message);
         }
 
         await PingAsync(job, run.Status == RunStatus.Succeeded ? HealthCheckSignal.Success : HealthCheckSignal.Failure, run.Message, log: null);
@@ -436,6 +443,9 @@ public sealed class BackupJobRunner(
         var total = items.Sum(i => i.ExpectedSize ?? 0);
         log.Info($"Uploading to '{definition.Name}' ({definition.Kind}).");
 
+        using var activity = StorixTelemetry.Source.StartActivity("upload");
+        activity?.SetTag("storix.destination", definition.Name);
+        activity?.SetTag("storix.destination_kind", definition.Kind.ToString());
         await RetryExecutor.ExecuteAsync(job.Retry, $"Upload to '{definition.Name}'", async (_, ct) =>
         {
             // A fresh connection per attempt; partial uploads left by a failed attempt are resumed.
