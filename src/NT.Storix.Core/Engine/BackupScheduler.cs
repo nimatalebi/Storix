@@ -17,7 +17,8 @@ public sealed class BackupScheduler(
     SettingsRepository settings,
     BackupJobRunner runner,
     IEnumerable<INotifier> notifiers,
-    ILogger<BackupScheduler> logger)
+    ILogger<BackupScheduler> logger,
+    RestoreDrillRunner? drills = null)
 {
     private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromMinutes(10);
     private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
@@ -106,12 +107,19 @@ public sealed class BackupScheduler(
         }
 
         var requested = runs.DequeueRunRequests().ToHashSet();
+        var drillRequested = drills is null ? [] : runs.DequeueDrillRequests().ToHashSet();
 
         foreach (var job in jobs.GetAll())
         {
             if (requested.Contains(job.Id))
             {
                 Start(job, RunTrigger.Manual, cancellationToken);
+                continue;
+            }
+
+            if (drillRequested.Contains(job.Id) || (job.Enabled && IsDrillDue(job, nowUtc)))
+            {
+                StartDrill(job, cancellationToken);
                 continue;
             }
 
@@ -135,7 +143,35 @@ public sealed class BackupScheduler(
         }
     }
 
-    private void Start(BackupJob job, RunTrigger trigger, CancellationToken cancellationToken)
+    private void Start(BackupJob job, RunTrigger trigger, CancellationToken cancellationToken) =>
+        Start(job, trigger.ToString(), ct => runner.RunAsync(job, trigger, ct), cancellationToken);
+
+    private void StartDrill(BackupJob job, CancellationToken cancellationToken)
+    {
+        if (drills is not null)
+        {
+            Start(job, "restore drill", ct => drills.RunAsync(job, ct), cancellationToken);
+        }
+    }
+
+    /// <summary>A drill is due when drills are enabled, the job has a successful backup and the last drill is old enough.</summary>
+    internal bool IsDrillDue(BackupJob job, DateTimeOffset nowUtc)
+    {
+        if (drills is null || !job.RestoreDrill.Enabled)
+        {
+            return false;
+        }
+
+        var last = runs.GetLastDrill(job.Id);
+        if (last is not null && nowUtc - last.Value < TimeSpan.FromDays(Math.Max(1, job.RestoreDrill.EveryDays)))
+        {
+            return false;
+        }
+
+        return runs.GetHealth(job.Id).LastSuccess is not null;
+    }
+
+    private void Start(BackupJob job, string trigger, Func<CancellationToken, Task> work, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_running.TryAdd(job.Id, completion.Task))
@@ -154,7 +190,7 @@ public sealed class BackupScheduler(
             {
                 await _slots.WaitAsync(cancellation.Token);
                 acquired = true;
-                await runner.RunAsync(job, trigger, cancellation.Token);
+                await work(cancellation.Token);
             }
             catch (OperationCanceledException)
             {

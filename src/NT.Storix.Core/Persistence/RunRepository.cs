@@ -156,24 +156,39 @@ public sealed class RunRepository(StorixDatabase database)
         return ids;
     }
 
-    /// <summary>Asks the service to cancel the running backup of a job.</summary>
-    public void RequestCancel(Guid jobId)
+    /// <summary>Asks the service to run a restore drill for a job now.</summary>
+    public void RequestDrill(Guid jobId) => Enqueue("drill_requests", jobId);
+
+    public IReadOnlyList<Guid> DequeueDrillRequests() => Dequeue("drill_requests");
+
+    /// <summary>Start time of the last restore drill of a job.</summary>
+    public DateTimeOffset? GetLastDrill(Guid jobId)
     {
         using var connection = database.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO cancel_requests (job_id, requested_at) VALUES ($job, $now) ON CONFLICT(job_id) DO UPDATE SET requested_at = excluded.requested_at";
+        command.CommandText = "SELECT MAX(started_at) FROM runs WHERE job_id = $job AND trigger = $trigger";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        command.Parameters.AddWithValue("$trigger", RunTrigger.RestoreDrill.ToString());
+        return command.ExecuteScalar() is string value ? DateTimeOffset.Parse(value, System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private void Enqueue(string table, Guid jobId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"INSERT INTO {table} (job_id, requested_at) VALUES ($job, $now) ON CONFLICT(job_id) DO UPDATE SET requested_at = excluded.requested_at";
         command.Parameters.AddWithValue("$job", jobId.ToString());
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
         command.ExecuteNonQuery();
     }
 
-    public IReadOnlyList<Guid> DequeueCancelRequests()
+    private IReadOnlyList<Guid> Dequeue(string table)
     {
         using var connection = database.Open();
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "SELECT job_id FROM cancel_requests";
+        command.CommandText = $"SELECT job_id FROM {table}";
         var ids = new List<Guid>();
         using (var reader = command.ExecuteReader())
         {
@@ -183,11 +198,16 @@ public sealed class RunRepository(StorixDatabase database)
             }
         }
 
-        command.CommandText = "DELETE FROM cancel_requests";
+        command.CommandText = $"DELETE FROM {table}";
         command.ExecuteNonQuery();
         transaction.Commit();
         return ids;
     }
+
+    /// <summary>Asks the service to cancel the running backup of a job.</summary>
+    public void RequestCancel(Guid jobId) => Enqueue("cancel_requests", jobId);
+
+    public IReadOnlyList<Guid> DequeueCancelRequests() => Dequeue("cancel_requests");
 
     private static BackupRun Read(SqliteDataReader reader) => new()
     {

@@ -15,6 +15,8 @@ public enum RunTrigger
 {
     Schedule,
     Manual,
+    /// <summary>A test restore (restore drill), not a backup.</summary>
+    RestoreDrill,
 }
 
 public sealed class BackupRun

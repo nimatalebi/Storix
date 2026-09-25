@@ -79,6 +79,12 @@ internal sealed class JobEditorForm : Form
     private readonly NumericUpDown _staleHours = Ui.Number(0, 24 * 90);
     private readonly TextBox _healthUrl = new();
 
+    // Restore drill
+    private readonly CheckBox _drillEnabled = new() { Text = "Run automatic restore drills", AutoSize = true };
+    private readonly NumericUpDown _drillDays = Ui.Number(1, 365, 7);
+    private readonly CheckBox _drillSql = new() { Text = "SQL Server: restore into a temporary database and run DBCC CHECKDB", AutoSize = true };
+    private readonly CheckBox _drillMongo = new() { Text = "MongoDB: validate the dump with mongorestore --dryRun", AutoSize = true };
+
     // Hooks
     private readonly TextBox _preCommand = Ui.Multiline(60);
     private readonly TextBox _postCommand = Ui.Multiline(60);
@@ -112,6 +118,7 @@ internal sealed class JobEditorForm : Form
         tabs.TabPages.Add(Page("Destinations", BuildDestinationsTab()));
         tabs.TabPages.Add(Page("Retention & Retry", BuildPoliciesTab()));
         tabs.TabPages.Add(Page("Notifications", BuildNotificationsTab()));
+        tabs.TabPages.Add(Page("Restore drill", BuildDrillTab()));
         tabs.TabPages.Add(Page("Hooks", BuildHooksTab()));
 
         var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
@@ -392,6 +399,25 @@ internal sealed class JobEditorForm : Form
         return grid;
     }
 
+    private Control BuildDrillTab()
+    {
+        var grid = Ui.Form();
+        grid.Row(null, new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(660, 0),
+            Text = "A backup is only as good as its restore. A restore drill downloads the latest backup from the first destination, " +
+                   "verifies the checksum, decrypts and extracts it into a temporary folder, and records the result in the history.",
+        });
+        grid.Row(null, _drillEnabled);
+        grid.Row("Every (days)", _drillDays);
+        grid.Row(null, _drillSql);
+        grid.Row(null, _drillMongo);
+        grid.Row(null, new Label { Text = "SQL Server drills extract into the job's backup directory so SQL Server can read the .bak file.", AutoSize = true, ForeColor = SystemColors.GrayText });
+        grid.Fill();
+        return grid;
+    }
+
     private Control BuildHooksTab()
     {
         var grid = Ui.Form();
@@ -476,6 +502,10 @@ internal sealed class JobEditorForm : Form
         _notifyEmail.Text = Job.Notifications.EmailTo;
         _staleHours.Value = Math.Clamp(Job.Notifications.AlertIfNoSuccessForHours, 0, 24 * 90);
         _healthUrl.Text = Job.Notifications.HealthCheckUrl;
+        _drillEnabled.Checked = Job.RestoreDrill.Enabled;
+        _drillDays.Value = Math.Clamp(Job.RestoreDrill.EveryDays, 1, 365);
+        _drillSql.Checked = Job.RestoreDrill.CheckSqlDatabases;
+        _drillMongo.Checked = Job.RestoreDrill.CheckMongoArchive;
         _preCommand.Text = Job.Hooks.PreCommand;
         _postCommand.Text = Job.Hooks.PostCommand;
         _hookTimeout.Value = Math.Clamp(Job.Hooks.TimeoutSeconds, 1, 86_400);
@@ -536,6 +566,10 @@ internal sealed class JobEditorForm : Form
         Job.Notifications.EmailTo = NullIfEmpty(_notifyEmail.Text);
         Job.Notifications.AlertIfNoSuccessForHours = (int)_staleHours.Value;
         Job.Notifications.HealthCheckUrl = NullIfEmpty(_healthUrl.Text);
+        Job.RestoreDrill.Enabled = _drillEnabled.Checked;
+        Job.RestoreDrill.EveryDays = (int)_drillDays.Value;
+        Job.RestoreDrill.CheckSqlDatabases = _drillSql.Checked;
+        Job.RestoreDrill.CheckMongoArchive = _drillMongo.Checked;
         Job.Hooks.PreCommand = NullIfEmpty(_preCommand.Text);
         Job.Hooks.PostCommand = NullIfEmpty(_postCommand.Text);
         Job.Hooks.TimeoutSeconds = (int)_hookTimeout.Value;

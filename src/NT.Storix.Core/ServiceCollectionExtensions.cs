@@ -23,7 +23,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<INotifier>(sp => new ChannelNotifier(
             sp.GetRequiredService<SettingsRepository>(), SharedHttp.Client, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ChannelNotifier>>()));
         services.AddSingleton<BackupJobRunner>();
-        services.AddSingleton<BackupScheduler>();
+        services.AddSingleton<RestoreDrillRunner>();
+        services.AddSingleton(sp => new BackupScheduler(
+            sp.GetRequiredService<JobRepository>(),
+            sp.GetRequiredService<RunRepository>(),
+            sp.GetRequiredService<SettingsRepository>(),
+            sp.GetRequiredService<BackupJobRunner>(),
+            sp.GetServices<INotifier>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BackupScheduler>>(),
+            sp.GetRequiredService<RestoreDrillRunner>()));
         services.AddSingleton<RestoreService>();
         return services;
     }

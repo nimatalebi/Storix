@@ -28,16 +28,18 @@ internal sealed class Harness : IDisposable
         MakeWorldWritable(Root);
 
         var database = new StorixDatabase(Path.Combine(Root, "storix.db"));
-        var settings = new SettingsRepository(database, new PlainProtector());
-        settings.Save(new AppSettings { StagingDirectory = Dir("staging") });
+        Settings = new SettingsRepository(database, new PlainProtector());
+        Settings.Save(new AppSettings { StagingDirectory = Dir("staging") });
         Runs = new RunRepository(database);
-        Runner = new BackupJobRunner(Runs, settings, new SourceFactory(), new DestinationFactory(), Array.Empty<INotifier>(), NullLogger<BackupJobRunner>.Instance);
+        Runner = new BackupJobRunner(Runs, Settings, new SourceFactory(), new DestinationFactory(), Array.Empty<INotifier>(), NullLogger<BackupJobRunner>.Instance);
         Restore = new RestoreService(new DestinationFactory());
     }
 
     public string Root { get; }
 
     public RunRepository Runs { get; }
+
+    public SettingsRepository Settings { get; }
 
     public BackupJobRunner Runner { get; }
 

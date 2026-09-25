@@ -122,3 +122,48 @@ public class DatabaseTests
         return (string)(await command.ExecuteScalarAsync())!;
     }
 }
+
+public class SqlRestoreDrillTests
+{
+    [DockerFact]
+    public async Task Sql_restore_drill_restores_into_temp_database_and_runs_checkdb()
+    {
+        using var harness = new Harness();
+        var shared = harness.Dir("shared");
+        await using var container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithBindMount(shared, shared)
+            .WithCreateParameterModifier(p => p.User = "root")
+            .Build();
+        await container.StartAsync();
+
+        var connectionString = container.GetConnectionString();
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "CREATE DATABASE DrillDb; EXEC('USE DrillDb; CREATE TABLE T (Id int PRIMARY KEY); INSERT INTO T VALUES (1),(2),(3);')";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var job = new BackupJob
+        {
+            Name = "SQL drill",
+            Source = { Kind = SourceKind.SqlServer, SqlServer = { ConnectionString = connectionString, Databases = ["DrillDb"], BackupDirectory = shared } },
+            Destinations = [new DestinationDefinition { Name = "Local", LocalFolder = { Path = harness.Dir("target") } }],
+            RestoreDrill = { Enabled = true, CheckSqlDatabases = true },
+        };
+        await harness.BackupAsync(job);
+
+        var drills = new RestoreDrillRunner(harness.Runs, harness.Settings, new NT.Storix.Core.Destinations.DestinationFactory(), [], Microsoft.Extensions.Logging.Abstractions.NullLogger<RestoreDrillRunner>.Instance);
+        var drill = await drills.RunAsync(job, CancellationToken.None);
+
+        Assert.True(drill.Status == RunStatus.Succeeded, drill.Log);
+        Assert.Contains("DBCC CHECKDB passed", drill.Log);
+
+        await using var check = new SqlConnection(connectionString);
+        await check.OpenAsync();
+        await using var count = check.CreateCommand();
+        count.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name LIKE 'storix_drill_%'";
+        Assert.Equal(0, (int)(await count.ExecuteScalarAsync())!);
+    }
+}

@@ -29,6 +29,8 @@ public sealed class BackupJob
 
     public JobHooks Hooks { get; set; } = new();
 
+    public RestoreDrillOptions RestoreDrill { get; set; } = new();
+
     /// <summary>
     /// File-name friendly identifier used as the prefix of every archive produced by this job.
     /// </summary>

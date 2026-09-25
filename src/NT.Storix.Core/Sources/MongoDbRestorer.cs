@@ -10,6 +10,10 @@ public static class MongoDbRestorer
     /// <param name="fromDatabase">Restore only this database (optional).</param>
     /// <param name="toDatabase">Rename <paramref name="fromDatabase"/> to this database (optional).</param>
     /// <param name="drop">Drop existing collections before restoring.</param>
+    /// <summary>Validates an archive without writing anything (<c>mongorestore --dryRun</c>).</summary>
+    public static Task DryRunAsync(string? mongorestorePath, string connectionString, string archivePath, CancellationToken cancellationToken) =>
+        RestoreAsync(mongorestorePath, connectionString, archivePath, null, null, drop: false, cancellationToken, dryRun: true);
+
     public static async Task RestoreAsync(
         string? mongorestorePath,
         string connectionString,
@@ -17,7 +21,8 @@ public static class MongoDbRestorer
         string? fromDatabase,
         string? toDatabase,
         bool drop,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool dryRun = false)
     {
         var start = new ProcessStartInfo
         {
@@ -32,6 +37,11 @@ public static class MongoDbRestorer
         if (drop)
         {
             start.ArgumentList.Add("--drop");
+        }
+
+        if (dryRun)
+        {
+            start.ArgumentList.Add("--dryRun");
         }
 
         if (!string.IsNullOrWhiteSpace(fromDatabase))

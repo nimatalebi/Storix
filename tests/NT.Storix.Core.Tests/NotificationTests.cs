@@ -52,11 +52,11 @@ public class NotificationTests
     }
 
     [Fact]
-    public void Webhook_payload_is_json_and_signed()
+    public async Task Webhook_payload_is_json_and_signed()
     {
         var channel = new NotificationChannel { Kind = NotificationChannelKind.Webhook, Url = "https://example.com/hook", SigningSecret = "s3cret" };
         using var request = ChannelNotifier.BuildRequest(channel, SampleFailure());
-        var body = request.Content!.ReadAsStringAsync().Result;
+        var body = await request.Content!.ReadAsStringAsync();
 
         using var json = JsonDocument.Parse(body);
         Assert.Equal("failure", json.RootElement.GetProperty("event").GetString());
@@ -68,11 +68,11 @@ public class NotificationTests
     [Theory]
     [InlineData(NotificationChannelKind.Telegram, "https://api.telegram.org/bot123:ABC/sendMessage")]
     [InlineData(NotificationChannelKind.Bale, "https://tapi.bale.ai/bot123:ABC/sendMessage")]
-    public void Telegram_and_bale_use_bot_api_with_escaped_html(NotificationChannelKind kind, string expectedUrl)
+    public async Task Telegram_and_bale_use_bot_api_with_escaped_html(NotificationChannelKind kind, string expectedUrl)
     {
         var channel = new NotificationChannel { Kind = kind, BotToken = "123:ABC", ChatId = "@ops" };
         using var request = ChannelNotifier.BuildRequest(channel, SampleFailure());
-        var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement;
+        var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync()).RootElement;
 
         Assert.Equal(expectedUrl, request.RequestUri!.ToString());
         Assert.Equal("@ops", body.GetProperty("chat_id").GetString());
@@ -84,11 +84,11 @@ public class NotificationTests
     [InlineData(NotificationChannelKind.Slack, "text")]
     [InlineData(NotificationChannelKind.Teams, "text")]
     [InlineData(NotificationChannelKind.Discord, "content")]
-    public void Chat_webhooks_use_their_text_field(NotificationChannelKind kind, string field)
+    public async Task Chat_webhooks_use_their_text_field(NotificationChannelKind kind, string field)
     {
         var channel = new NotificationChannel { Kind = kind, Url = "https://hooks.example.com/x" };
         using var request = ChannelNotifier.BuildRequest(channel, SampleFailure());
-        var text = JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement.GetProperty(field).GetString();
+        var text = JsonDocument.Parse(await request.Content!.ReadAsStringAsync()).RootElement.GetProperty(field).GetString();
         Assert.Contains("Disk full", text);
     }
 
