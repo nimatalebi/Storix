@@ -82,6 +82,7 @@ Backup Agent
 | **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
 | **Control** | Run now, pause/resume or cancel a running backup, hold uploads on metered connections, and an early free-space check based on the previous backup size. |
 | **Restore drills** | Scheduled or on-demand test restores of the latest backup. SQL Server backups are restored into a temporary database and checked with `DBCC CHECKDB`; MongoDB dumps are validated with `mongorestore --dryRun`. |
+| **Audit log** | Every change to jobs and settings, every import/export, restore and service action is recorded with user, machine and a diff (secrets masked). See the **Audit** tab. |
 | **Import / export configs** | Export all jobs and settings to JSON. Secrets are either removed or protected with a passphrase (AES-256-GCM). |
 
 ### V1 scope

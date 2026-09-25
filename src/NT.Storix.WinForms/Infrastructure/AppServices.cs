@@ -15,6 +15,7 @@ internal sealed class AppServices
         Runs = new RunRepository(database);
         Settings = new SettingsRepository(database, protector);
         SqlBackups = new SqlBackupRepository(database);
+        Audit = new AuditRepository(database);
         OAuthTokenStore.UseDatabase(Settings, protector);
     }
 
@@ -27,6 +28,8 @@ internal sealed class AppServices
     public SettingsRepository Settings { get; }
 
     public SqlBackupRepository SqlBackups { get; }
+
+    public AuditRepository Audit { get; }
 
     public IDestinationFactory Destinations { get; } = new DestinationFactory();
 

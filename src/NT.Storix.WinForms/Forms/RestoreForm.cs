@@ -31,9 +31,12 @@ internal sealed class RestoreForm : Form
     private CancellationTokenSource? _cts;
     private string? _lastRestoreFolder;
 
-    public RestoreForm(IReadOnlyList<BackupJob> jobs, IDestinationFactory destinations, BackupJob? selected = null)
+    private readonly NT.Storix.Core.Persistence.AuditRepository? _audit;
+
+    public RestoreForm(IReadOnlyList<BackupJob> jobs, IDestinationFactory destinations, BackupJob? selected = null, NT.Storix.Core.Persistence.AuditRepository? audit = null)
     {
         _jobs = jobs;
+        _audit = audit;
         _restore = new RestoreService(destinations);
 
         Text = "Restore backup";
@@ -220,6 +223,8 @@ internal sealed class RestoreForm : Form
             }
 
             _lastRestoreFolder = request.TargetDirectory;
+            _audit?.Add("restore", _fromDestination.Checked ? $"{SelectedJob?.Name}: {((BackupFileInfo)_backups.SelectedItems[0].Tag!).Name}" : _file.Text,
+                $"to {request.TargetDirectory}, {result.Files.Count} file(s){(request.Include is null ? string.Empty : ", selected files only")}");
             _database.Enabled = HasDatabaseFiles(_lastRestoreFolder);
             Log($"Done: {result.Files.Count} file(s), {result.TotalBytes:N0} bytes{(result.ChecksumVerified ? ", checksum verified" : string.Empty)}.");
             Dialogs.Info(this, $"Restore completed: {result.Files.Count} file(s) restored to\n{request.TargetDirectory}" +

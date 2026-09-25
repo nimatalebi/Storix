@@ -4,6 +4,7 @@ using NT.Storix.Core;
 using NT.Storix.Core.Configuration;
 using NT.Storix.Core.Models;
 using NT.Storix.Core.Monitoring;
+using NT.Storix.Core.Security;
 using NT.Storix.Core.Scheduling;
 using NT.Storix.WinForms.Infrastructure;
 
@@ -51,6 +52,7 @@ internal sealed class MainForm : Form
         _tabs.TabPages.Add(CreatePage("History", BuildHistoryTab()));
         _tabs.TabPages.Add(CreatePage("Settings", BuildSettingsTab()));
         _tabs.TabPages.Add(CreatePage("Service", BuildServiceTab()));
+        _tabs.TabPages.Add(CreatePage("Audit", BuildAuditTab()));
         _tabs.SelectedIndexChanged += (_, _) => RefreshCurrentTab();
 
         var status = new StatusStrip();
@@ -260,6 +262,7 @@ internal sealed class MainForm : Form
         if (editor.ShowDialog(this) == DialogResult.OK)
         {
             _services.Jobs.Save(editor.Job);
+            _services.Audit.Add("job.create", editor.Job.Name, AuditDiff.Describe<BackupJob>(null, editor.Job));
             RefreshJobs();
         }
     }
@@ -275,6 +278,7 @@ internal sealed class MainForm : Form
         if (editor.ShowDialog(this) == DialogResult.OK)
         {
             _services.Jobs.Save(editor.Job);
+            _services.Audit.Add("job.update", editor.Job.Name, AuditDiff.Describe(job, editor.Job));
             RefreshJobs();
         }
     }
@@ -296,6 +300,7 @@ internal sealed class MainForm : Form
         }
 
         _services.Jobs.Save(copy);
+        _services.Audit.Add("job.duplicate", copy.Name, $"copy of '{job.Name}'");
         RefreshJobs();
     }
 
@@ -304,6 +309,7 @@ internal sealed class MainForm : Form
         if (SelectedJob is { } job && Dialogs.Confirm(this, $"Delete job '{job.Name}'?\n\nBackups already stored on destinations are not deleted."))
         {
             _services.Jobs.Delete(job.Id);
+            _services.Audit.Add("job.delete", job.Name, AuditDiff.Describe<BackupJob>(job, null));
             RefreshJobs();
         }
     }
@@ -314,6 +320,7 @@ internal sealed class MainForm : Form
         {
             job.Enabled = !job.Enabled;
             _services.Jobs.Save(job);
+            _services.Audit.Add(job.Enabled ? "job.enable" : "job.disable", job.Name);
             RefreshJobs();
         }
     }
@@ -326,6 +333,7 @@ internal sealed class MainForm : Form
         }
 
         _services.Runs.RequestRun(job.Id);
+        _services.Audit.Add("job.run", job.Name);
         if (WindowsServiceManager.GetStatus() != ServiceControllerStatus.Running)
         {
             Dialogs.Info(this, "The run was queued, but the Storix service is not running. It will start as soon as the service starts (see the Service tab).");
@@ -377,6 +385,7 @@ internal sealed class MainForm : Form
         }
 
         _services.Runs.RequestDrill(job.Id);
+        _services.Audit.Add("job.drill", job.Name);
         Dialogs.Info(this, WindowsServiceManager.GetStatus() == ServiceControllerStatus.Running
             ? $"A restore drill of '{job.Name}' was queued. The result appears in the History tab."
             : "The restore drill was queued, but the Storix service is not running.");
@@ -391,6 +400,7 @@ internal sealed class MainForm : Form
 
         var paused = _services.Runs.IsPaused(job.Id);
         _services.Runs.SetPaused(job.Id, !paused);
+        _services.Audit.Add(paused ? "job.resume" : "job.pause", job.Name);
         Dialogs.Info(this, paused
             ? $"'{job.Name}' resumed."
             : $"'{job.Name}' is paused. A running backup stops at its next step (before archiving, encrypting or uploading the next volume) until you resume it.");
@@ -413,13 +423,14 @@ internal sealed class MainForm : Form
         if (Dialogs.Confirm(this, $"Cancel the running backup of '{job.Name}'?"))
         {
             _services.Runs.RequestCancel(job.Id);
+            _services.Audit.Add("job.cancel", job.Name);
             Dialogs.Info(this, "Cancellation requested. The service stops the backup within a few seconds.");
         }
     }
 
     private void OpenRestore()
     {
-        using var form = new RestoreForm(_services.Jobs.GetAll(), _services.Destinations, SelectedJob);
+        using var form = new RestoreForm(_services.Jobs.GetAll(), _services.Destinations, SelectedJob, _services.Audit);
         form.ShowDialog(this);
     }
 
@@ -515,6 +526,42 @@ internal sealed class MainForm : Form
     private sealed record JobFilterItem(Guid Id, string Name)
     {
         public override string ToString() => Name;
+    }
+
+    // ---------------------------------------------------------------- Audit
+
+    private readonly ListView _audit = new() { View = View.Details, FullRowSelect = true, Dock = DockStyle.Fill };
+
+    private Control BuildAuditTab()
+    {
+        _audit.Columns.Add("When", 140);
+        _audit.Columns.Add("User", 170);
+        _audit.Columns.Add("Action", 120);
+        _audit.Columns.Add("Target", 180);
+        _audit.Columns.Add("Details", 600);
+        _audit.DoubleClick += (_, _) =>
+        {
+            if (_audit.SelectedItems.Count > 0)
+            {
+                Dialogs.Info(this, (string)_audit.SelectedItems[0].Tag!);
+            }
+        };
+        return _audit;
+    }
+
+    private void RefreshAudit()
+    {
+        _audit.BeginUpdate();
+        _audit.Items.Clear();
+        foreach (var entry in _services.Audit.GetRecent())
+        {
+            _audit.Items.Add(new ListViewItem([entry.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), $"{entry.User} ({entry.Machine})", entry.Action, entry.Target, entry.Details ?? string.Empty])
+            {
+                Tag = $"{entry.At.ToLocalTime():yyyy-MM-dd HH:mm:ss}  {entry.User} on {entry.Machine}\n{entry.Action}: {entry.Target}\n\n{entry.Details?.Replace("; ", "\n")}",
+            });
+        }
+
+        _audit.EndUpdate();
     }
 
     // ---------------------------------------------------------------- Settings
@@ -661,6 +708,7 @@ internal sealed class MainForm : Form
         settings.Smtp = ReadSmtp();
         settings.Channels = _channelList;
 
+        _services.Audit.Add("settings.update", "settings", AuditDiff.Describe(_services.Settings.Get(), settings));
         _services.Settings.Save(settings);
         Dialogs.Info(this, "Settings saved.");
     }
@@ -704,6 +752,7 @@ internal sealed class MainForm : Form
         try
         {
             await Task.Run(action);
+            _services.Audit.Add("service." + verb.Split(' ')[0], StorixPaths.ServiceName);
             Dialogs.Info(this, $"The service was {verb}.");
         }
         catch (Exception ex)
@@ -766,6 +815,7 @@ internal sealed class MainForm : Form
         {
             var json = ConfigurationPorter.Export(_services.Jobs.GetAll(), _services.Settings.Get(), passphrase);
             File.WriteAllText(save.FileName, json);
+            _services.Audit.Add("config.export", save.FileName, passphrase is null ? "without secrets" : "with passphrase-protected secrets");
             Dialogs.Info(this, $"Exported {_jobList.Count} job(s).");
         }
         catch (Exception ex)
@@ -808,6 +858,7 @@ internal sealed class MainForm : Form
 
             foreach (var job in package.Jobs)
             {
+                _services.Audit.Add("config.import", job.Name, AuditDiff.Describe(_services.Jobs.Get(job.Id), job));
                 _services.Jobs.Save(job);
             }
 
@@ -847,6 +898,9 @@ internal sealed class MainForm : Form
                     break;
                 case 1:
                     RefreshHistory();
+                    break;
+                case 4 when !silent:
+                    RefreshAudit();
                     break;
             }
         }

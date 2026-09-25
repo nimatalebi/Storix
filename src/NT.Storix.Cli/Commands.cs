@@ -86,11 +86,15 @@ internal static class Commands
             case "run":
                 return await RunJobAsync(a, output);
             case "cancel":
-                Services.Runs.RequestCancel(FindJob(a.Required(0, "job name")).Id);
+                var toCancel = FindJob(a.Required(0, "job name"));
+                Services.Runs.RequestCancel(toCancel.Id);
+                Services.Audit.Add("job.cancel", toCancel.Name, "command line");
                 output.WriteLine("Cancellation requested.");
                 return 0;
             case "drill":
-                Services.Runs.RequestDrill(FindJob(a.Required(0, "job name")).Id);
+                var toDrill = FindJob(a.Required(0, "job name"));
+                Services.Runs.RequestDrill(toDrill.Id);
+                Services.Audit.Add("job.drill", toDrill.Name, "command line");
                 output.WriteLine("Restore drill queued; the service runs it within a few seconds.");
                 return 0;
             case "export":
@@ -227,6 +231,7 @@ internal static class Commands
 
         var before = Services.Runs.GetLast(job.Id)?.Id;
         Services.Runs.RequestRun(job.Id);
+        Services.Audit.Add("job.run", job.Name, "command line");
         output.WriteLine($"'{job.Name}' queued; the Storix service starts it within a few seconds.");
         if (!a.Flag("wait"))
         {
@@ -250,6 +255,7 @@ internal static class Commands
         var file = a.Required(0, "output file");
         var json = ConfigurationPorter.Export(Services.Jobs.GetAll(), a.Flag("settings") ? Services.Settings.Get() : null, a.Option("passphrase"));
         File.WriteAllText(file, json);
+        Services.Audit.Add("config.export", file, "command line");
         output.WriteLine($"Exported to {file}.");
         return 0;
     }
@@ -274,6 +280,7 @@ internal static class Commands
 
         foreach (var job in package.Jobs)
         {
+            Services.Audit.Add("config.import", job.Name, NT.Storix.Core.Security.AuditDiff.Describe(Services.Jobs.Get(job.Id), job) + " (command line)");
             Services.Jobs.Save(job);
         }
 
@@ -349,5 +356,7 @@ internal static class Commands
         public static RunRepository Runs => new(Database.Value);
 
         public static SettingsRepository Settings => new(Database.Value, Protector);
+
+        public static AuditRepository Audit => new(Database.Value);
     }
 }
