@@ -10,11 +10,10 @@ namespace NT.Storix.Core.Monitoring;
 /// <summary>Sends a short e-mail report after a run, based on the job's notification options.</summary>
 public sealed class EmailNotifier(SettingsRepository settingsRepository, ILogger<EmailNotifier> logger) : INotifier
 {
-    public async Task NotifyAsync(BackupJob job, BackupRun run, CancellationToken cancellationToken)
+    public async Task NotifyAsync(Notification notification, CancellationToken cancellationToken)
     {
-        var success = run.Status == RunStatus.Succeeded;
-        var wanted = success ? job.Notifications.OnSuccess : job.Notifications.OnFailure;
-        if (!wanted || string.IsNullOrWhiteSpace(job.Notifications.EmailTo))
+        var recipients = notification.Job?.Notifications.EmailTo;
+        if (string.IsNullOrWhiteSpace(recipients))
         {
             return;
         }
@@ -22,62 +21,51 @@ public sealed class EmailNotifier(SettingsRepository settingsRepository, ILogger
         var smtp = settingsRepository.Get().Smtp;
         if (!smtp.Enabled || string.IsNullOrWhiteSpace(smtp.Host) || string.IsNullOrWhiteSpace(smtp.From))
         {
-            logger.LogWarning("E-mail notification for job {Job} skipped: SMTP is not configured.", job.Name);
+            logger.LogWarning("E-mail notification for job {Job} skipped: SMTP is not configured.", notification.Job?.Name);
             return;
         }
 
         try
         {
-            using var message = new MailMessage
-            {
-                From = new MailAddress(smtp.From),
-                Subject = $"[Storix] {job.Name}: {run.Status}",
-                Body = BuildBody(run),
-            };
-
-            foreach (var address in job.Notifications.EmailTo.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                message.To.Add(address);
-            }
-
-            using var client = new SmtpClient(smtp.Host, smtp.Port) { EnableSsl = smtp.UseSsl };
-            if (!string.IsNullOrWhiteSpace(smtp.UserName))
-            {
-                client.Credentials = new NetworkCredential(smtp.UserName, smtp.Password);
-            }
-
-            await client.SendMailAsync(message, cancellationToken);
+            await SendAsync(smtp, recipients, $"[Storix] {notification.Title}", BuildBody(notification), cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "Failed to send e-mail notification for job {Job}.", job.Name);
+            logger.LogError("Failed to send e-mail notification for job {Job}: {Error}", notification.Job?.Name, ex.Message);
         }
     }
 
-    private static string BuildBody(BackupRun run)
+    public static async Task SendAsync(SmtpSettings smtp, string recipients, string subject, string body, CancellationToken cancellationToken)
     {
-        var body = new StringBuilder()
-            .AppendLine($"Job:       {run.JobName}")
-            .AppendLine($"Status:    {run.Status}")
-            .AppendLine($"Machine:   {Environment.MachineName}")
-            .AppendLine($"Started:   {run.StartedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}")
-            .AppendLine($"Duration:  {run.Duration:hh\\:mm\\:ss}");
-
-        if (run.FileName is not null)
+        using var message = new MailMessage { From = new MailAddress(smtp.From), Subject = subject, Body = body };
+        foreach (var address in recipients.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            body.AppendLine($"File:      {run.FileName}")
-                .AppendLine($"Size:      {run.SizeBytes:N0} bytes")
-                .AppendLine($"SHA-256:   {run.Sha256}");
+            message.To.Add(address);
         }
 
-        if (!string.IsNullOrWhiteSpace(run.Message))
+        using var client = new SmtpClient(smtp.Host, smtp.Port) { EnableSsl = smtp.UseSsl };
+        if (!string.IsNullOrWhiteSpace(smtp.UserName))
         {
-            body.AppendLine().AppendLine(run.Message);
+            client.Credentials = new NetworkCredential(smtp.UserName, smtp.Password);
         }
 
-        if (!string.IsNullOrWhiteSpace(run.Log))
+        await client.SendMailAsync(message, cancellationToken);
+    }
+
+    private static string BuildBody(Notification notification)
+    {
+        var body = new StringBuilder().AppendLine(notification.Text);
+        if (notification.Run is { } run)
         {
-            body.AppendLine().AppendLine("Log:").AppendLine(run.Log);
+            if (run.Sha256 is not null)
+            {
+                body.AppendLine($"SHA-256: {run.Sha256}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(run.Log))
+            {
+                body.AppendLine().AppendLine("Log:").AppendLine(run.Log);
+            }
         }
 
         return body.ToString();

@@ -20,14 +20,18 @@ public sealed class BackupJobRunner(
     ISourceFactory sourceFactory,
     IDestinationFactory destinationFactory,
     IEnumerable<INotifier> notifiers,
-    ILogger<BackupJobRunner> logger)
+    ILogger<BackupJobRunner> logger,
+    HttpClient? http = null)
 {
+    private readonly HttpClient _http = http ?? SharedHttp.Client;
+
     public async Task<BackupRun> RunAsync(BackupJob job, RunTrigger trigger, CancellationToken cancellationToken)
     {
         var run = new BackupRun { JobId = job.Id, JobName = job.Name, Trigger = trigger, StartedAt = DateTimeOffset.UtcNow };
         runs.Insert(run);
 
         var log = new RunLog(logger, job.Name);
+        await PingAsync(job, HealthCheckSignal.Start, null, log);
         var staging = Path.Combine(GetStagingRoot(settings.Get()), run.Id.ToString("N"));
         SourceSnapshot? snapshot = null;
 
@@ -127,19 +131,51 @@ public sealed class BackupJobRunner(
             runs.Complete(run);
         }
 
+        await PingAsync(job, run.Status == RunStatus.Succeeded ? HealthCheckSignal.Success : HealthCheckSignal.Failure, run.Message, log: null);
+
+        var wanted = run.Status == RunStatus.Succeeded ? job.Notifications.OnSuccess : job.Notifications.OnFailure;
+        if (wanted)
+        {
+            await NotifyAsync(notifiers, Notification.ForRun(job, run), logger);
+        }
+
+        return run;
+    }
+
+    /// <summary>Delivers a notification through every notifier; failures are logged, never thrown.</summary>
+    public static async Task NotifyAsync(IEnumerable<INotifier> notifiers, Notification notification, ILogger logger)
+    {
         foreach (var notifier in notifiers)
         {
             try
             {
-                await notifier.NotifyAsync(job, run, CancellationToken.None);
+                await notifier.NotifyAsync(notification, CancellationToken.None);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Notifier {Notifier} failed.", notifier.GetType().Name);
+                logger.LogError("Notifier {Notifier} failed: {Error}", notifier.GetType().Name, ex.Message);
             }
         }
+    }
 
-        return run;
+    private async Task PingAsync(BackupJob job, HealthCheckSignal signal, string? message, RunLog? log)
+    {
+        if (string.IsNullOrWhiteSpace(job.Notifications.HealthCheckUrl))
+        {
+            return;
+        }
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await HealthCheckPinger.PingAsync(_http, job.Notifications.HealthCheckUrl, signal, message, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            // The URL may contain a secret token: only log the error.
+            log?.Warn($"Health-check ping ({signal}) failed: {ex.Message}");
+            logger.LogWarning("Health-check ping ({Signal}) for job {Job} failed: {Error}", signal, job.Name, ex.Message);
+        }
     }
 
     public static string GetStagingRoot(AppSettings appSettings) =>

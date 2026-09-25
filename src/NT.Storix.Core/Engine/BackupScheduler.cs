@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NT.Storix.Core.Models;
+using NT.Storix.Core.Monitoring;
 using NT.Storix.Core.Persistence;
 using NT.Storix.Core.Scheduling;
 
@@ -15,8 +16,12 @@ public sealed class BackupScheduler(
     RunRepository runs,
     SettingsRepository settings,
     BackupJobRunner runner,
+    IEnumerable<INotifier> notifiers,
     ILogger<BackupScheduler> logger)
 {
+    private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromMinutes(10);
+    private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(10);
 
     private readonly ConcurrentDictionary<Guid, Task> _running = new();
@@ -51,6 +56,11 @@ public sealed class BackupScheduler(
                 try
                 {
                     Tick(lastTick, now, stoppingToken);
+                    if (now - _lastHealthCheck >= HealthCheckInterval)
+                    {
+                        _lastHealthCheck = now;
+                        await CheckStaleJobsAsync(now);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -144,6 +154,28 @@ public sealed class BackupScheduler(
                 completion.TrySetResult();
             }
         }, CancellationToken.None);
+    }
+
+    /// <summary>Dead man's switch: alerts for enabled jobs without a recent successful backup.</summary>
+    internal async Task<int> CheckStaleJobsAsync(DateTimeOffset nowUtc)
+    {
+        var alerts = 0;
+        foreach (var job in jobs.GetAll().Where(j => j.Enabled && j.Notifications.AlertIfNoSuccessForHours > 0))
+        {
+            var (lastSuccess, firstRun) = runs.GetHealth(job.Id);
+            var key = $"stale-alert:{job.Id}";
+            DateTimeOffset? lastAlert = settings.GetValue(key) is { } stored ? DateTimeOffset.Parse(stored, System.Globalization.CultureInfo.InvariantCulture) : null;
+
+            if (DeadMansSwitch.ShouldAlert(job.Notifications.AlertIfNoSuccessForHours, lastSuccess, firstRun, lastAlert, nowUtc))
+            {
+                logger.LogWarning("Job {Job} has no successful backup within {Hours} hours.", job.Name, job.Notifications.AlertIfNoSuccessForHours);
+                settings.SetValue(key, nowUtc.ToString("O"));
+                await BackupJobRunner.NotifyAsync(notifiers, Notification.ForStale(job, lastSuccess), logger);
+                alerts++;
+            }
+        }
+
+        return alerts;
     }
 
     /// <summary>Starts once every enabled job whose scheduled run was missed while the service was not running.</summary>

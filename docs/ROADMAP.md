@@ -30,9 +30,9 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Chunked archives (split volumes) with chunk-level resume
 - [x] Restore from a destination or a local folder (restore wizard in the manager)
 - [ ] Google Drive OAuth sign-in for personal "My Drive"
-- [ ] Webhook notifications
+- [x] Webhook notifications (JSON, HMAC-signed)
 - [ ] VSS snapshots for open and locked files
-- [ ] Dead man's switch: alert when a job has not succeeded for X hours; ping healthchecks.io / Uptime Kuma
+- [x] Dead man's switch: alert when a job has not succeeded for X hours; ping healthchecks.io / Uptime Kuma
 - [ ] Scheduled restore drills (for SQL: restore to a temp database + `DBCC CHECKDB`)
 - [ ] SQL Server differential and log backups with chain tracking; point-in-time restore
 - [x] Direct database restore from the UI (`RESTORE ... WITH MOVE`, `mongorestore`)
@@ -75,7 +75,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ### Monitoring and UX
 - [ ] Tray icon with status and "run now"
-- [ ] Telegram / Bale / Slack / Teams notifications; weekly summary e-mail
+- [x] Telegram / Bale / Slack / Teams / Discord notifications
+- [ ] Weekly summary e-mail
 - [ ] Dashboard: storage per destination, growth trend, success rate
 - [ ] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode

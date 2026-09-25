@@ -26,4 +26,17 @@ public sealed class NotificationOptions
 
     /// <summary>Comma or semicolon separated list of e-mail recipients.</summary>
     public string? EmailTo { get; set; }
+
+    /// <summary>
+    /// Dead man's switch: alert when the job has had no successful backup for this many hours. 0 disables it.
+    /// </summary>
+    public int AlertIfNoSuccessForHours { get; set; }
+
+    /// <summary>
+    /// Optional health-check URL pinged after every run (healthchecks.io, Uptime Kuma push monitors...).
+    /// Supports the placeholders {status} (up/down) and {message}; without placeholders healthchecks.io
+    /// conventions are used (URL on success, URL/fail on failure, URL/start when the run starts).
+    /// </summary>
+    [Secret]
+    public string? HealthCheckUrl { get; set; }
 }

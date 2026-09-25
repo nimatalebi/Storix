@@ -20,6 +20,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISourceFactory, SourceFactory>();
         services.AddSingleton<IDestinationFactory, DestinationFactory>();
         services.AddSingleton<INotifier, EmailNotifier>();
+        services.AddSingleton<INotifier>(sp => new ChannelNotifier(
+            sp.GetRequiredService<SettingsRepository>(), SharedHttp.Client, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ChannelNotifier>>()));
         services.AddSingleton<BackupJobRunner>();
         services.AddSingleton<BackupScheduler>();
         services.AddSingleton<RestoreService>();

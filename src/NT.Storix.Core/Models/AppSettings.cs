@@ -12,6 +12,9 @@ public sealed class AppSettings
     public int HistoryRetentionDays { get; set; } = 365;
 
     public SmtpSettings Smtp { get; set; } = new();
+
+    /// <summary>Chat and webhook channels that receive notifications of every job.</summary>
+    public List<NotificationChannel> Channels { get; set; } = [];
 }
 
 public sealed class SmtpSettings

@@ -170,7 +170,7 @@ public class FaultInjectionTests
         var leftover = Directory.CreateDirectory(temp.Combine("staging", crashed.Id.ToString("N")));
         File.WriteAllText(Path.Combine(leftover.FullName, "faults_20260101_000000.zip"), "half an archive");
 
-        var scheduler = new BackupScheduler(setup.Jobs, setup.Runs, setup.Settings, setup.Runner, NullLogger<BackupScheduler>.Instance);
+        var scheduler = new BackupScheduler(setup.Jobs, setup.Runs, setup.Settings, setup.Runner, Array.Empty<INotifier>(), NullLogger<BackupScheduler>.Instance);
         scheduler.Recover(setup.Settings.Get());
 
         Assert.Equal(RunStatus.Interrupted, setup.Runs.GetRecent(setup.Job.Id).Single().Status);

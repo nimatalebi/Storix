@@ -68,6 +68,25 @@ public sealed class RunRepository(StorixDatabase database)
 
     public BackupRun? GetLast(Guid jobId) => GetRecent(jobId, 1).FirstOrDefault();
 
+    /// <summary>Start time of the last successful run and of the first recorded run of a job.</summary>
+    public (DateTimeOffset? LastSuccess, DateTimeOffset? FirstRun) GetHealth(Guid jobId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT (SELECT MAX(started_at) FROM runs WHERE job_id = $job AND status = $ok),
+                   (SELECT MIN(started_at) FROM runs WHERE job_id = $job)
+            """;
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        command.Parameters.AddWithValue("$ok", RunStatus.Succeeded.ToString());
+        using var reader = command.ExecuteReader();
+        reader.Read();
+        return (ReadDate(reader, 0), ReadDate(reader, 1));
+    }
+
+    private static DateTimeOffset? ReadDate(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : DateTimeOffset.Parse(reader.GetString(ordinal), System.Globalization.CultureInfo.InvariantCulture);
+
     public string? GetLog(Guid runId)
     {
         using var connection = database.Open();

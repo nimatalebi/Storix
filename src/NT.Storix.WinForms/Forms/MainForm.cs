@@ -3,6 +3,7 @@ using System.ServiceProcess;
 using NT.Storix.Core;
 using NT.Storix.Core.Configuration;
 using NT.Storix.Core.Models;
+using NT.Storix.Core.Monitoring;
 using NT.Storix.Core.Scheduling;
 using NT.Storix.WinForms.Infrastructure;
 
@@ -31,6 +32,8 @@ internal sealed class MainForm : Form
     private readonly TextBox _smtpUser = new();
     private readonly TextBox _smtpPassword = new() { UseSystemPasswordChar = true };
     private readonly TextBox _smtpFrom = new();
+    private readonly ListView _channels = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false };
+    private List<NotificationChannel> _channelList = [];
 
     private List<BackupJob> _jobList = [];
 
@@ -396,6 +399,18 @@ internal sealed class MainForm : Form
         grid.Row("User name", _smtpUser);
         grid.Row("Password", _smtpPassword);
         grid.Row("From address", _smtpFrom);
+        grid.Row(null, Ui.Buttons(Ui.Button("Send test e-mail...", (_, _) => SendTestEmail(), 150)));
+        grid.Row(null, new Label { Text = "Chat and webhook channels (receive notifications of every job)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        _channels.Columns.Add("Name", 200);
+        _channels.Columns.Add("Type", 100);
+        _channels.Columns.Add("Enabled", 70);
+        _channels.Columns.Add("Only failures", 100);
+        _channels.DoubleClick += (_, _) => EditChannel();
+        grid.Row(null, _channels, height: 120);
+        grid.Row(null, Ui.Buttons(
+            Ui.Button("Add...", (_, _) => AddChannel()),
+            Ui.Button("Edit...", (_, _) => EditChannel()),
+            Ui.Button("Remove", (_, _) => RemoveChannel())));
         grid.Row(null, Ui.Buttons(Ui.Button("Save settings", (_, _) => SaveSettings(), 130)));
         grid.Row(null, new Label { Text = "Restart the service to apply engine changes.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
@@ -415,26 +430,98 @@ internal sealed class MainForm : Form
         _smtpUser.Text = settings.Smtp.UserName;
         _smtpPassword.Text = settings.Smtp.Password;
         _smtpFrom.Text = settings.Smtp.From;
+        _channelList = settings.Channels;
+        RefreshChannels();
     }
+
+    private void RefreshChannels()
+    {
+        _channels.Items.Clear();
+        foreach (var channel in _channelList)
+        {
+            _channels.Items.Add(new ListViewItem([channel.Name, channel.Kind.ToString(), channel.Enabled ? "Yes" : "No", channel.OnlyFailures ? "Yes" : "No"]) { Tag = channel });
+        }
+    }
+
+    private void AddChannel()
+    {
+        using var editor = new ChannelEditorForm(new NotificationChannel { Name = $"Channel {_channelList.Count + 1}" });
+        if (editor.ShowDialog(this) == DialogResult.OK)
+        {
+            _channelList.Add(editor.Channel);
+            RefreshChannels();
+        }
+    }
+
+    private void EditChannel()
+    {
+        if (_channels.SelectedItems.Count == 0)
+        {
+            return;
+        }
+
+        var current = (NotificationChannel)_channels.SelectedItems[0].Tag!;
+        using var editor = new ChannelEditorForm(current);
+        if (editor.ShowDialog(this) == DialogResult.OK)
+        {
+            _channelList[_channelList.IndexOf(current)] = editor.Channel;
+            RefreshChannels();
+        }
+    }
+
+    private void RemoveChannel()
+    {
+        if (_channels.SelectedItems.Count > 0 && Dialogs.Confirm(this, "Remove this channel?"))
+        {
+            _channelList.Remove((NotificationChannel)_channels.SelectedItems[0].Tag!);
+            RefreshChannels();
+        }
+    }
+
+    private async void SendTestEmail()
+    {
+        var smtp = ReadSmtp();
+        if (string.IsNullOrWhiteSpace(smtp.Host) || string.IsNullOrWhiteSpace(smtp.From))
+        {
+            Dialogs.Error(this, "Enter the SMTP host and the From address first.");
+            return;
+        }
+
+        UseWaitCursor = true;
+        try
+        {
+            await EmailNotifier.SendAsync(smtp, smtp.From, "[Storix] Test e-mail", $"This is a test e-mail from Storix on {Environment.MachineName}.", CancellationToken.None);
+            Dialogs.Info(this, $"A test e-mail was sent to {smtp.From}.");
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, $"Sending failed:\n\n{ex.Message}");
+        }
+        finally
+        {
+            UseWaitCursor = false;
+        }
+    }
+
+    private SmtpSettings ReadSmtp() => new()
+    {
+        Enabled = _smtpEnabled.Checked,
+        Host = _smtpHost.Text.Trim(),
+        Port = (int)_smtpPort.Value,
+        UseSsl = _smtpSsl.Checked,
+        UserName = string.IsNullOrWhiteSpace(_smtpUser.Text) ? null : _smtpUser.Text.Trim(),
+        Password = string.IsNullOrEmpty(_smtpPassword.Text) ? null : _smtpPassword.Text,
+        From = _smtpFrom.Text.Trim(),
+    };
 
     private void SaveSettings()
     {
-        var settings = new AppSettings
-        {
-            MaxConcurrentJobs = (int)_maxConcurrent.Value,
-            StagingDirectory = string.IsNullOrWhiteSpace(_staging.Text) ? null : _staging.Text.Trim(),
-            HistoryRetentionDays = (int)_historyDays.Value,
-            Smtp = new SmtpSettings
-            {
-                Enabled = _smtpEnabled.Checked,
-                Host = _smtpHost.Text.Trim(),
-                Port = (int)_smtpPort.Value,
-                UseSsl = _smtpSsl.Checked,
-                UserName = string.IsNullOrWhiteSpace(_smtpUser.Text) ? null : _smtpUser.Text.Trim(),
-                Password = string.IsNullOrEmpty(_smtpPassword.Text) ? null : _smtpPassword.Text,
-                From = _smtpFrom.Text.Trim(),
-            },
-        };
+        var settings = _services.Settings.Get();
+        settings.MaxConcurrentJobs = (int)_maxConcurrent.Value;
+        settings.StagingDirectory = string.IsNullOrWhiteSpace(_staging.Text) ? null : _staging.Text.Trim();
+        settings.HistoryRetentionDays = (int)_historyDays.Value;
+        settings.Smtp = ReadSmtp();
+        settings.Channels = _channelList;
 
         _services.Settings.Save(settings);
         Dialogs.Info(this, "Settings saved.");

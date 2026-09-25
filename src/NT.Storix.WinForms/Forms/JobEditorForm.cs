@@ -67,6 +67,8 @@ internal sealed class JobEditorForm : Form
     private readonly CheckBox _notifySuccess = new() { Text = "On success", AutoSize = true };
     private readonly CheckBox _notifyFailure = new() { Text = "On failure", AutoSize = true };
     private readonly TextBox _notifyEmail = new();
+    private readonly NumericUpDown _staleHours = Ui.Number(0, 24 * 90);
+    private readonly TextBox _healthUrl = new();
 
     public JobEditorForm(BackupJob job, IDestinationFactory destinationFactory)
     {
@@ -329,6 +331,18 @@ internal sealed class JobEditorForm : Form
         grid.Row(null, _notifySuccess);
         grid.Row(null, _notifyFailure);
         grid.Row("Recipients (comma separated)", _notifyEmail);
+        grid.Row(null, new Label { Text = "Chat and webhook channels are configured in Settings and receive these notifications too.", AutoSize = true, ForeColor = SystemColors.GrayText });
+        grid.Row(null, new Label { Text = "Monitoring", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        grid.Row("Alert if no successful backup for (hours, 0 = off)", _staleHours);
+        grid.Row("Health-check URL (optional)", _healthUrl);
+        grid.Row(null, new Label
+        {
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            MaximumSize = new Size(640, 0),
+            Text = "healthchecks.io: paste the ping URL (Storix calls /start, the URL on success and /fail on failure). " +
+                   "Uptime Kuma push monitor: use {status} and {message}, e.g. https://kuma/api/push/KEY?status={status}&msg={message}",
+        });
         grid.Fill();
         return grid;
     }
@@ -386,6 +400,8 @@ internal sealed class JobEditorForm : Form
         _notifySuccess.Checked = Job.Notifications.OnSuccess;
         _notifyFailure.Checked = Job.Notifications.OnFailure;
         _notifyEmail.Text = Job.Notifications.EmailTo;
+        _staleHours.Value = Math.Clamp(Job.Notifications.AlertIfNoSuccessForHours, 0, 24 * 90);
+        _healthUrl.Text = Job.Notifications.HealthCheckUrl;
 
         RefreshDestinations();
         ShowSourcePanel();
@@ -433,6 +449,8 @@ internal sealed class JobEditorForm : Form
         Job.Notifications.OnSuccess = _notifySuccess.Checked;
         Job.Notifications.OnFailure = _notifyFailure.Checked;
         Job.Notifications.EmailTo = NullIfEmpty(_notifyEmail.Text);
+        Job.Notifications.AlertIfNoSuccessForHours = (int)_staleHours.Value;
+        Job.Notifications.HealthCheckUrl = NullIfEmpty(_healthUrl.Text);
     }
 
     private void ApplySchedule(ScheduleDefinition schedule)
