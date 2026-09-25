@@ -59,7 +59,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] zstd compression
 - [ ] Content-defined chunking and deduplication (incremental-forever)
 - [ ] Incremental file backups using a file index
-- [ ] Build once and upload to many destinations; copy jobs for the 3-2-1 rule
+- [x] Build once and upload to many destinations; copy jobs for the 3-2-1 rule
 
 ### More sources
 - [x] PostgreSQL, MySQL/MariaDB, Redis, SQLite

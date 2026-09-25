@@ -81,6 +81,7 @@ Backup Agent
 | **Observability** | Optional Prometheus `/metrics` endpoint (last success, size, duration and status per job), Windows Event Log entries for warnings and errors, and OpenTelemetry traces exported over OTLP. |
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Job chains** | Run a job automatically after another job succeeds (e.g. copy files after a database dump). A destination that fails repeatedly is skipped for 30 minutes (circuit breaker). |
+| **Copy jobs (3-2-1)** | A copy job replicates another job's backups, still encrypted, from one of its destinations to other destinations (e.g. NAS → S3). Only missing backups are copied, each is checked against its SHA-256 first, and the copy job has its own retention. Chain it to the source job to copy right after each backup. |
 | **Hooks** | Commands before and after each backup (cmd/PowerShell), with timeout, exit-code handling and job variables. |
 | **Control** | Run now, pause/resume or cancel a running backup, hold uploads on metered connections, and an early free-space check based on the previous backup size. |
 | **Restore drills** | Scheduled or on-demand test restores of the latest backup. SQL Server backups are restored into a temporary database and checked with `DBCC CHECKDB`; MongoDB dumps are validated with `mongorestore --dryRun`. |

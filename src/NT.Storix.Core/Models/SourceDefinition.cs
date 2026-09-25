@@ -15,6 +15,8 @@ public enum SourceKind
     WindowsSystem,
     DockerVolumes,
     HyperV,
+    /// <summary>Copy job: replicates the backups another job stored on one destination to this job's destinations (3-2-1).</summary>
+    CopyOf,
 }
 
 public sealed class SourceDefinition
@@ -41,6 +43,8 @@ public sealed class SourceDefinition
 
     public HyperVSourceOptions HyperV { get; set; } = new();
 
+    public CopyJobSourceOptions CopyOf { get; set; } = new();
+
     /// <summary>Options object of the selected kind (for generic editors).</summary>
     public object ActiveOptions => Kind switch
     {
@@ -54,6 +58,7 @@ public sealed class SourceDefinition
         SourceKind.WindowsSystem => WindowsSystem,
         SourceKind.DockerVolumes => DockerVolumes,
         SourceKind.HyperV => HyperV,
+        SourceKind.CopyOf => CopyOf,
         _ => throw new NotSupportedException($"Source kind {Kind} is not supported."),
     };
 }
@@ -234,4 +239,13 @@ public sealed class HyperVSourceOptions
 {
     [Category("Backup"), Description("Comma-separated virtual machine names. Running VMs are exported from a production checkpoint.")]
     public string? VirtualMachines { get; set; }
+}
+
+public sealed class CopyJobSourceOptions
+{
+    [Category("Copy"), Description("Name (or id) of the job whose backups are copied.")]
+    public string? Job { get; set; }
+
+    [Category("Copy"), Description("Name of that job's destination to copy from. Empty = its first enabled destination.")]
+    public string? FromDestination { get; set; }
 }

@@ -21,6 +21,7 @@ public sealed class SourceFactory : ISourceFactory
         SourceKind.WindowsSystem => new WindowsSystemSource(definition.WindowsSystem),
         SourceKind.DockerVolumes => new DockerVolumesSource(definition.DockerVolumes),
         SourceKind.HyperV => new HyperVSource(definition.HyperV),
+        SourceKind.CopyOf => throw new NotSupportedException("Copy jobs do not produce files; they copy existing backups."),
         _ => throw new NotSupportedException($"Source kind {definition.Kind} is not supported."),
     };
 }

@@ -15,7 +15,7 @@ namespace NT.Storix.Core.Engine;
 /// Executes one backup run: source → archive (compression) → encryption → checksum → upload (with retry,
 /// resume and verification) → retention → history → notifications.
 /// </summary>
-public sealed class BackupJobRunner(
+public sealed partial class BackupJobRunner(
     RunRepository runs,
     SettingsRepository settings,
     ISourceFactory sourceFactory,
@@ -24,7 +24,8 @@ public sealed class BackupJobRunner(
     ILogger<BackupJobRunner> logger,
     HttpClient? http = null,
     SqlBackupRepository? sqlBackups = null,
-    CircuitBreaker? circuitBreaker = null)
+    CircuitBreaker? circuitBreaker = null,
+    JobRepository? jobs = null)
 {
     private readonly HttpClient _http = http ?? SharedHttp.Client;
 
@@ -48,155 +49,14 @@ public sealed class BackupJobRunner(
             Directory.CreateDirectory(staging);
             log.Info($"Backup started ({trigger}). Source: {job.Source.Kind}.");
 
-            // 0. Pre-command (e.g. stop an application so its files are consistent).
-            if (!string.IsNullOrWhiteSpace(job.Hooks.PreCommand))
+            if (job.Source.Kind == SourceKind.CopyOf)
             {
-                var pre = await RunHookAsync(job, run, "Pre-command", job.Hooks.PreCommand, log, cancellationToken);
-                if (!pre.Succeeded && job.Hooks.AbortOnPreCommandFailure)
-                {
-                    throw new InvalidOperationException(pre.TimedOut ? "The pre-command timed out." : $"The pre-command failed with exit code {pre.ExitCode}.");
-                }
-            }
-
-            // 1. Source (database dumps are retried, e.g. when the server is busy).
-            var source = sourceFactory.Create(job.Source);
-            snapshot = await RetryExecutor.ExecuteAsync(
-                job.Retry, "Source", (_, ct) => source.PrepareAsync(new SourceContext(staging, log), ct), log, cancellationToken);
-
-            if (snapshot.Entries.Count == 0)
-            {
-                throw new InvalidOperationException("Nothing to back up: the source produced no files.");
-            }
-
-            // Fail early when the staging disk is obviously too small.
-            var previousSize = runs.GetRecent(job.Id, 10).FirstOrDefault(r => r.Status == RunStatus.Succeeded && r.SizeBytes > 0)?.SizeBytes;
-            FreeSpace.Ensure(staging, FreeSpace.EstimateStagingBytes(snapshot.Entries, previousSize, job.Processing.Encrypt), "the staging folder");
-
-            await CheckpointAsync(job, log, uploading: false, cancellationToken);
-
-            // 2. Compression.
-            var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false, ArchiveBuilder.UsesZstd(job.Processing.Compression)));
-            var archive = await ArchiveBuilder.CreateAsync(snapshot.Entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
-            log.Info($"Archive created: {archive.EntryCount} file(s), {FormatSize(archive.SizeBytes)}{(archive.SkippedCount > 0 ? $", {archive.SkippedCount} skipped" : string.Empty)}.");
-
-            if (job.Processing.VerifyArchive)
-            {
-                await ArchiveBuilder.VerifyAsync(zipPath, archive.EntryCount, cancellationToken);
-                log.Info("Archive verified.");
-            }
-
-            await CheckpointAsync(job, log, uploading: false, cancellationToken);
-
-            // 3. Encryption.
-            var finalPath = zipPath;
-            if (job.Processing.Encrypt)
-            {
-                finalPath = zipPath + AesFileEncryptor.FileExtension;
-                var secret = EncryptionSecret.Resolve(job.Processing)!;
-                await AesFileEncryptor.EncryptAsync(zipPath, finalPath, secret, cancellationToken);
-                File.Delete(zipPath);
-                var publicKey = job.Processing.EncryptionMode == EncryptionMode.PublicKey;
-                log.Info(publicKey ? "Archive encrypted (AES-256, key wrapped with the job's RSA public key)." : "Archive encrypted (AES-256).");
-
-                // With a public key the private key is (deliberately) not on this machine: nothing to verify against.
-                if (job.Processing.VerifyArchive && !publicKey)
-                {
-                    await AesFileEncryptor.VerifyAsync(finalPath, secret, cancellationToken);
-                    log.Info("Encrypted archive verified.");
-                }
-            }
-
-            // 4. Checksum.
-            var fileName = Path.GetFileName(finalPath);
-            var hash = await Checksum.Sha256Async(finalPath, cancellationToken);
-            var sidecar = await Checksum.WriteSidecarAsync(finalPath, hash, cancellationToken);
-            run.FileName = fileName;
-            run.SizeBytes = new FileInfo(finalPath).Length;
-            run.Sha256 = hash;
-            log.Info($"SHA-256: {hash}");
-
-            // File index for browsing and single-file restores (encrypted like the archive).
-            var indexPath = finalPath + BackupIndex.Extension;
-            await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries] }
-                .WriteAsync(indexPath, job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null, cancellationToken);
-            var indexItem = new UploadItem(indexPath, Path.GetFileName(indexPath), new FileInfo(indexPath).Length, SkipIfPresent: false);
-
-            // Files to upload, in order. Split backups upload their manifest last (it marks a complete set).
-            var uploads = new List<UploadItem>();
-            if (job.Processing.SplitSizeMb > 0 && run.SizeBytes > job.Processing.SplitSizeMb * 1024L * 1024L)
-            {
-                var manifest = await ChunkedArchive.SplitAsync(finalPath, job.Processing.SplitSizeMb * 1024L * 1024L, hash, cancellationToken);
-                File.Delete(finalPath);
-                var manifestPath = finalPath + ChunkManifest.Extension;
-                await File.WriteAllTextAsync(manifestPath, manifest.ToJson(), cancellationToken);
-                log.Info($"Split into {manifest.Chunks.Count} volume(s) of up to {job.Processing.SplitSizeMb} MB.");
-
-                uploads.AddRange(manifest.Chunks.Select(c => new UploadItem(Path.Combine(staging, c.Name), c.Name, c.Size, SkipIfPresent: true)));
-                uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
-                uploads.Add(indexItem);
-                uploads.Add(new UploadItem(manifestPath, Path.GetFileName(manifestPath), new FileInfo(manifestPath).Length, SkipIfPresent: false));
+                await CopyBackupsAsync(job, run, staging, log, cancellationToken);
             }
             else
             {
-                uploads.Add(new UploadItem(finalPath, fileName, run.SizeBytes.Value, SkipIfPresent: false));
-                uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
-                uploads.Add(indexItem);
+                await BackupAsync(job, run, staging, log, s => snapshot = s, cancellationToken);
             }
-
-            // Wait for the allowed upload window (e.g. only at night).
-            if (UploadWindow.Parse(job.Schedule.UploadWindow) is { } window)
-            {
-                var zone = string.IsNullOrWhiteSpace(job.Schedule.TimeZoneId) ? TimeZoneInfo.Local : TimeZoneInfo.FindSystemTimeZoneById(job.Schedule.TimeZoneId);
-                var wait = window.Delay(DateTimeOffset.UtcNow, zone);
-                if (wait > TimeSpan.Zero)
-                {
-                    log.Info($"Outside the upload window {window}; waiting {wait:hh\\:mm} before uploading.");
-                    await Task.Delay(wait, cancellationToken);
-                }
-            }
-
-            // 5. Destinations.
-            var destinations = job.Destinations.Where(d => d.Enabled).ToList();
-            var failures = new List<string>();
-            foreach (var destination in destinations)
-            {
-                if (circuitBreaker?.OpenUntil(destination.Id) is { } openUntil)
-                {
-                    var message = $"skipped: failed repeatedly, next attempt after {openUntil.ToLocalTime():HH:mm}";
-                    failures.Add($"{destination.Name}: {message}");
-                    log.Warn($"Destination '{destination.Name}' {message}.");
-                    continue;
-                }
-
-                try
-                {
-                    await UploadAsync(job, destination, uploads, log, cancellationToken);
-                    circuitBreaker?.RecordSuccess(destination.Id);
-                    await ApplyRetentionAsync(job, destination, fileName, log, cancellationToken);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    circuitBreaker?.RecordFailure(destination.Id);
-                    failures.Add($"{destination.Name}: {ex.Message}");
-                    log.Error($"Destination '{destination.Name}' failed.", ex);
-                }
-            }
-
-            var succeeded = destinations.Count - failures.Count;
-            if (succeeded > 0 && sqlBackups is not null)
-            {
-                foreach (var info in snapshot.SqlBackups)
-                {
-                    info.JobId = job.Id;
-                    info.RunId = run.Id;
-                    info.ArchiveName = fileName;
-                    sqlBackups.Add(info);
-                }
-            }
-            run.Status = failures.Count == 0 ? RunStatus.Succeeded : succeeded > 0 ? RunStatus.PartiallySucceeded : RunStatus.Failed;
-            run.Message = failures.Count == 0
-                ? $"Backup stored on {succeeded} destination(s)."
-                : $"{failures.Count} of {destinations.Count} destination(s) failed. {string.Join(" | ", failures)}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -247,6 +107,162 @@ public sealed class BackupJobRunner(
         }
 
         return run;
+    }
+
+    /// <summary>The regular pipeline: hooks, source, archive, encryption, checksum, upload and retention.</summary>
+    private async Task BackupAsync(BackupJob job, BackupRun run, string staging, RunLog log, Action<SourceSnapshot> onSnapshot, CancellationToken cancellationToken)
+    {
+
+        // 0. Pre-command (e.g. stop an application so its files are consistent).
+        if (!string.IsNullOrWhiteSpace(job.Hooks.PreCommand))
+        {
+            var pre = await RunHookAsync(job, run, "Pre-command", job.Hooks.PreCommand, log, cancellationToken);
+            if (!pre.Succeeded && job.Hooks.AbortOnPreCommandFailure)
+            {
+                throw new InvalidOperationException(pre.TimedOut ? "The pre-command timed out." : $"The pre-command failed with exit code {pre.ExitCode}.");
+            }
+        }
+
+        // 1. Source (database dumps are retried, e.g. when the server is busy).
+        var source = sourceFactory.Create(job.Source);
+        var snapshot = await RetryExecutor.ExecuteAsync(
+            job.Retry, "Source", (_, ct) => source.PrepareAsync(new SourceContext(staging, log), ct), log, cancellationToken);
+        onSnapshot(snapshot);
+
+        if (snapshot.Entries.Count == 0)
+        {
+            throw new InvalidOperationException("Nothing to back up: the source produced no files.");
+        }
+
+        // Fail early when the staging disk is obviously too small.
+        var previousSize = runs.GetRecent(job.Id, 10).FirstOrDefault(r => r.Status == RunStatus.Succeeded && r.SizeBytes > 0)?.SizeBytes;
+        FreeSpace.Ensure(staging, FreeSpace.EstimateStagingBytes(snapshot.Entries, previousSize, job.Processing.Encrypt), "the staging folder");
+
+        await CheckpointAsync(job, log, uploading: false, cancellationToken);
+
+        // 2. Compression.
+        var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false, ArchiveBuilder.UsesZstd(job.Processing.Compression)));
+        var archive = await ArchiveBuilder.CreateAsync(snapshot.Entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
+        log.Info($"Archive created: {archive.EntryCount} file(s), {FormatSize(archive.SizeBytes)}{(archive.SkippedCount > 0 ? $", {archive.SkippedCount} skipped" : string.Empty)}.");
+
+        if (job.Processing.VerifyArchive)
+        {
+            await ArchiveBuilder.VerifyAsync(zipPath, archive.EntryCount, cancellationToken);
+            log.Info("Archive verified.");
+        }
+
+        await CheckpointAsync(job, log, uploading: false, cancellationToken);
+
+        // 3. Encryption.
+        var finalPath = zipPath;
+        if (job.Processing.Encrypt)
+        {
+            finalPath = zipPath + AesFileEncryptor.FileExtension;
+            var secret = EncryptionSecret.Resolve(job.Processing)!;
+            await AesFileEncryptor.EncryptAsync(zipPath, finalPath, secret, cancellationToken);
+            File.Delete(zipPath);
+            var publicKey = job.Processing.EncryptionMode == EncryptionMode.PublicKey;
+            log.Info(publicKey ? "Archive encrypted (AES-256, key wrapped with the job's RSA public key)." : "Archive encrypted (AES-256).");
+
+            // With a public key the private key is (deliberately) not on this machine: nothing to verify against.
+            if (job.Processing.VerifyArchive && !publicKey)
+            {
+                await AesFileEncryptor.VerifyAsync(finalPath, secret, cancellationToken);
+                log.Info("Encrypted archive verified.");
+            }
+        }
+
+        // 4. Checksum.
+        var fileName = Path.GetFileName(finalPath);
+        var hash = await Checksum.Sha256Async(finalPath, cancellationToken);
+        var sidecar = await Checksum.WriteSidecarAsync(finalPath, hash, cancellationToken);
+        run.FileName = fileName;
+        run.SizeBytes = new FileInfo(finalPath).Length;
+        run.Sha256 = hash;
+        log.Info($"SHA-256: {hash}");
+
+        // File index for browsing and single-file restores (encrypted like the archive).
+        var indexPath = finalPath + BackupIndex.Extension;
+        await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries] }
+            .WriteAsync(indexPath, job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null, cancellationToken);
+        var indexItem = new UploadItem(indexPath, Path.GetFileName(indexPath), new FileInfo(indexPath).Length, SkipIfPresent: false);
+
+        // Files to upload, in order. Split backups upload their manifest last (it marks a complete set).
+        var uploads = new List<UploadItem>();
+        if (job.Processing.SplitSizeMb > 0 && run.SizeBytes > job.Processing.SplitSizeMb * 1024L * 1024L)
+        {
+            var manifest = await ChunkedArchive.SplitAsync(finalPath, job.Processing.SplitSizeMb * 1024L * 1024L, hash, cancellationToken);
+            File.Delete(finalPath);
+            var manifestPath = finalPath + ChunkManifest.Extension;
+            await File.WriteAllTextAsync(manifestPath, manifest.ToJson(), cancellationToken);
+            log.Info($"Split into {manifest.Chunks.Count} volume(s) of up to {job.Processing.SplitSizeMb} MB.");
+
+            uploads.AddRange(manifest.Chunks.Select(c => new UploadItem(Path.Combine(staging, c.Name), c.Name, c.Size, SkipIfPresent: true)));
+            uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+            uploads.Add(indexItem);
+            uploads.Add(new UploadItem(manifestPath, Path.GetFileName(manifestPath), new FileInfo(manifestPath).Length, SkipIfPresent: false));
+        }
+        else
+        {
+            uploads.Add(new UploadItem(finalPath, fileName, run.SizeBytes.Value, SkipIfPresent: false));
+            uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+            uploads.Add(indexItem);
+        }
+
+        // Wait for the allowed upload window (e.g. only at night).
+        if (UploadWindow.Parse(job.Schedule.UploadWindow) is { } window)
+        {
+            var zone = string.IsNullOrWhiteSpace(job.Schedule.TimeZoneId) ? TimeZoneInfo.Local : TimeZoneInfo.FindSystemTimeZoneById(job.Schedule.TimeZoneId);
+            var wait = window.Delay(DateTimeOffset.UtcNow, zone);
+            if (wait > TimeSpan.Zero)
+            {
+                log.Info($"Outside the upload window {window}; waiting {wait:hh\\:mm} before uploading.");
+                await Task.Delay(wait, cancellationToken);
+            }
+        }
+
+        // 5. Destinations.
+        var destinations = job.Destinations.Where(d => d.Enabled).ToList();
+        var failures = new List<string>();
+        foreach (var destination in destinations)
+        {
+            if (circuitBreaker?.OpenUntil(destination.Id) is { } openUntil)
+            {
+                var message = $"skipped: failed repeatedly, next attempt after {openUntil.ToLocalTime():HH:mm}";
+                failures.Add($"{destination.Name}: {message}");
+                log.Warn($"Destination '{destination.Name}' {message}.");
+                continue;
+            }
+
+            try
+            {
+                await UploadAsync(job, destination, uploads, log, cancellationToken);
+                circuitBreaker?.RecordSuccess(destination.Id);
+                await ApplyRetentionAsync(job, destination, fileName, log, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                circuitBreaker?.RecordFailure(destination.Id);
+                failures.Add($"{destination.Name}: {ex.Message}");
+                log.Error($"Destination '{destination.Name}' failed.", ex);
+            }
+        }
+
+        var succeeded = destinations.Count - failures.Count;
+        if (succeeded > 0 && sqlBackups is not null)
+        {
+            foreach (var info in snapshot.SqlBackups)
+            {
+                info.JobId = job.Id;
+                info.RunId = run.Id;
+                info.ArchiveName = fileName;
+                sqlBackups.Add(info);
+            }
+        }
+        run.Status = failures.Count == 0 ? RunStatus.Succeeded : succeeded > 0 ? RunStatus.PartiallySucceeded : RunStatus.Failed;
+        run.Message = failures.Count == 0
+            ? $"Backup stored on {succeeded} destination(s)."
+            : $"{failures.Count} of {destinations.Count} destination(s) failed. {string.Join(" | ", failures)}";
     }
 
     /// <summary>Poll interval while a run is paused or waiting for an unmetered connection.</summary>
@@ -412,6 +428,9 @@ public sealed class BackupJobRunner(
             case SourceKind.MongoDb when string.IsNullOrWhiteSpace(job.Source.MongoDb.ConnectionString):
                 errors.Add("MongoDB connection string is required.");
                 break;
+            case SourceKind.CopyOf when string.IsNullOrWhiteSpace(job.Source.CopyOf.Job):
+                errors.Add("Choose the job whose backups are copied.");
+                break;
             case SourceKind.Sqlite when string.IsNullOrWhiteSpace(job.Source.Sqlite.DatabasePaths):
                 errors.Add("Select at least one SQLite database.");
                 break;
@@ -485,13 +504,15 @@ public sealed class BackupJobRunner(
         }, log, cancellationToken);
     }
 
-    private async Task ApplyRetentionAsync(BackupJob job, DestinationDefinition definition, string currentFile, RunLog log, CancellationToken cancellationToken)
+    /// <param name="copiedPrefix">For copy jobs: file prefix of the job whose backups were copied.</param>
+    private async Task ApplyRetentionAsync(BackupJob job, DestinationDefinition definition, string currentFile, RunLog log, CancellationToken cancellationToken, string? copiedPrefix = null)
     {
         await using var destination = destinationFactory.Create(definition);
+        var filePrefix = copiedPrefix ?? job.FilePrefix;
         try
         {
             var files = await destination.ListAsync(cancellationToken);
-            var prefix = job.FilePrefix + "_";
+            var prefix = filePrefix + "_";
 
             // Partial upload cleanup: leftovers of interrupted runs of this job.
             foreach (var partial in files.Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
@@ -502,13 +523,13 @@ public sealed class BackupJobRunner(
             }
 
             // Volumes of interrupted split uploads (no manifest) from earlier runs.
-            foreach (var orphan in BackupNaming.OrphanedFiles(job.FilePrefix, files.Select(f => f.Name), keep: currentFile).ToList())
+            foreach (var orphan in BackupNaming.OrphanedFiles(filePrefix, files.Select(f => f.Name), keep: currentFile).ToList())
             {
                 await destination.DeleteAsync(orphan, cancellationToken);
                 log.Info($"Removed incomplete volume '{orphan}' from '{definition.Name}'.");
             }
 
-            var backups = BackupNaming.ParseBackups(job.FilePrefix, files.Select(f => f.Name));
+            var backups = BackupNaming.ParseBackups(filePrefix, files.Select(f => f.Name));
 
             foreach (var backup in RetentionPlanner.SelectForDeletion(backups, job.Retention, DateTimeOffset.UtcNow))
             {
@@ -530,7 +551,10 @@ public sealed class BackupJobRunner(
                     continue;
                 }
 
-                sqlBackups?.DeleteByArchive(job.Id, [backup.Name]);
+                if (copiedPrefix is null)
+                {
+                    sqlBackups?.DeleteByArchive(job.Id, [backup.Name]);
+                }
 
                 log.Info($"Retention: deleted '{backup.Name}' from '{definition.Name}'.");
             }

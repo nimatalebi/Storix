@@ -830,6 +830,8 @@ internal sealed class JobEditorForm : Form
             SourceKind.WindowsSystem => "Backs up IIS configuration, registry keys, scheduled tasks and public certificates of this server.",
             SourceKind.DockerVolumes => "Each volume is archived with tar by a short-lived helper container. Restore: docker run --rm -v VOLUME:/target -v FOLDER:/backup alpine tar -xf /backup/VOLUME.tar -C /target",
             SourceKind.HyperV => "Virtual machines are exported with Export-VM (running VMs from a production checkpoint). Import them again with Import-VM.",
+            SourceKind.CopyOf => "Copy job (3-2-1 rule): copies the backups of another job, as they are (still encrypted), from one of its destinations to this job's destinations. " +
+                                 "This job's retention decides how many copies are kept; compression and encryption settings are not used. Tip: set the schedule to run after the source job.",
             _ => string.Empty,
         };
 
