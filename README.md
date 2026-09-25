@@ -3,7 +3,7 @@
 **Storix** is an open-source backup agent for Windows.
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
 
-Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint** or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
+Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive**, **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint**, a **Telegram or Bale** channel (directly or through a Cloudflare Worker relay) or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
 [![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
@@ -51,6 +51,7 @@ Backup Agent
 │   ├── WebDAV (Nextcloud, NAS)
 │   ├── Dropbox
 │   ├── OneDrive / SharePoint
+│   ├── Telegram / Bale (optional Cloudflare Worker relay)
 │   └── rclone (40+ providers)
 │
 └── Monitoring
@@ -82,6 +83,7 @@ Backup Agent
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Job chains** | Run a job automatically after another job succeeds (e.g. copy files after a database dump). A destination that fails repeatedly is skipped for 30 minutes (circuit breaker). |
 | **Incremental backups** | File jobs can back up only the files that changed (size or modification time) since the previous backup, with a new full backup every N days. Incremental archives are named `.inc.zip` and carry the list of deleted files. Restoring one restores its chain (full + incrementals) automatically, from a destination or from a folder; retention never deletes a backup that a kept incremental depends on. A failed or partial run makes the next backup a full one. |
+| **Telegram / Bale** | Backups as documents in a private channel: files are split into 19 MB parts (so the bot can download them again) and listed in a pinned catalog, so another machine can restore. A Cloudflare Worker relay (`tools/telegram-relay`) helps when the server cannot reach Telegram; notifications can use it too. See [docs/TELEGRAM.md](docs/TELEGRAM.md). |
 | **Deduplication** | Optional "incremental forever" mode: files are split into content-defined chunks (FastCDC), compressed with zstd and encrypted (AES-256-GCM, keyed chunk ids). Only chunks a destination does not have yet are uploaded, in ~32 MB pack files; each backup is a small `.snap` snapshot. Every restored file is checked against its SHA-256; retention deletes snapshots and then packs no snapshot uses. Restore needs the snapshot and its packs (from the destination, or all in one folder). |
 | **Plugins** | Add your own sources and destinations as .NET class libraries in the `plugins` folder; their secret settings are encrypted like built-in ones. See [docs/PLUGINS.md](docs/PLUGINS.md) and the sample plugin. |
 | **Copy jobs (3-2-1)** | A copy job replicates another job's backups, still encrypted, from one of its destinations to other destinations (e.g. NAS → S3). Only missing backups are copied, each is checked against its SHA-256 first, and the copy job has its own retention. Chain it to the source job to copy right after each backup. |

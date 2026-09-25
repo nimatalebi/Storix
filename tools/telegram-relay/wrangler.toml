@@ -1,0 +1,8 @@
+name = "storix-telegram-relay"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Set the key as a secret (not here):  npx wrangler secret put RELAY_KEY
+[vars]
+ALLOWED_BOTS = ""
+UPSTREAM = "https://api.telegram.org"

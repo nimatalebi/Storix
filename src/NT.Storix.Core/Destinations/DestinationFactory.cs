@@ -21,6 +21,7 @@ public sealed class DestinationFactory : IDestinationFactory
         DestinationKind.Dropbox => new DropboxDestination(definition.Dropbox, definition.MaxUploadKBps),
         DestinationKind.OneDrive => new OneDriveDestination(definition.OneDrive, definition.Id, definition.MaxUploadKBps),
         DestinationKind.Rclone => new RcloneDestination(definition.Rclone, definition.MaxUploadKBps),
+        DestinationKind.Telegram => new TelegramDestination(definition.Telegram, definition.MaxUploadKBps),
         DestinationKind.Plugin => Plugins.PluginRegistry.CreateDestination(definition.Plugin, definition.MaxUploadKBps),
         _ => throw new NotSupportedException($"Destination kind {definition.Kind} is not supported."),
     };

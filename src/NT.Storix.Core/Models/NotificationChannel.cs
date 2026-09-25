@@ -43,5 +43,11 @@ public sealed class NotificationChannel
     [Category("Telegram / Bale"), Description("Chat, group or channel id (e.g. 123456789 or @mychannel).")]
     public string? ChatId { get; set; }
 
+    [Category("Telegram / Bale"), Description("Optional relay when this server cannot reach the Bot API, e.g. a Cloudflare Worker URL. Empty = the official API.")]
+    public string? ApiBaseUrl { get; set; }
+
+    [Category("Telegram / Bale"), Description("Shared key for the relay (X-Storix-Relay-Key header)."), PasswordPropertyText(true), Secret]
+    public string? RelayKey { get; set; }
+
     public override string ToString() => $"{Name} ({Kind})";
 }

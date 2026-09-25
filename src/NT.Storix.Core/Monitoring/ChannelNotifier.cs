@@ -54,8 +54,10 @@ public sealed class ChannelNotifier(SettingsRepository settings, HttpClient http
                     throw new InvalidOperationException("Bot token and chat id are required.");
                 }
 
-                var host = channel.Kind == NotificationChannelKind.Telegram ? "https://api.telegram.org" : "https://tapi.bale.ai";
-                return new HttpRequestMessage(HttpMethod.Post, $"{host}/bot{channel.BotToken.Trim()}/sendMessage")
+                var host = string.IsNullOrWhiteSpace(channel.ApiBaseUrl)
+                    ? channel.Kind == NotificationChannelKind.Telegram ? Destinations.TelegramBotApi.TelegramUrl : Destinations.TelegramBotApi.BaleUrl
+                    : channel.ApiBaseUrl.Trim().TrimEnd('/');
+                var telegram = new HttpRequestMessage(HttpMethod.Post, $"{host}/bot{channel.BotToken.Trim()}/sendMessage")
                 {
                     Content = JsonContent.Create(new
                     {
@@ -65,6 +67,12 @@ public sealed class ChannelNotifier(SettingsRepository settings, HttpClient http
                         disable_web_page_preview = true,
                     }),
                 };
+                if (!string.IsNullOrEmpty(channel.RelayKey))
+                {
+                    telegram.Headers.Add(Destinations.TelegramBotApi.RelayHeader, channel.RelayKey);
+                }
+
+                return telegram;
 
             case NotificationChannelKind.Slack:
             case NotificationChannelKind.Teams:

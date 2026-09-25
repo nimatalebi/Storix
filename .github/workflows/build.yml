@@ -43,5 +43,8 @@ jobs:
       - name: Test
         run: dotnet test tests/NT.Storix.IntegrationTests -c Release --verbosity normal
 
+      - name: Telegram relay (Cloudflare Worker) tests
+        run: node --test tools/telegram-relay/worker.test.mjs
+
       - name: Linux agent package
         run: ./build/package-linux.sh 0.0.0-ci artifacts

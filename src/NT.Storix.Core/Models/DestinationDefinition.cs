@@ -15,6 +15,8 @@ public enum DestinationKind
     OneDrive,
     /// <summary>Any of the 40+ providers supported by rclone.</summary>
     Rclone,
+    /// <summary>Documents in a Telegram (or Bale) chat, directly or through a relay such as a Cloudflare Worker.</summary>
+    Telegram,
     /// <summary>A destination added by a plugin (see <c>plugins</c> folder).</summary>
     Plugin,
 }
@@ -52,6 +54,8 @@ public sealed class DestinationDefinition
 
     public RcloneOptions Rclone { get; set; } = new();
 
+    public TelegramOptions Telegram { get; set; } = new();
+
     public Plugins.PluginOptions Plugin { get; set; } = new();
 
     public object ActiveOptions => Kind switch
@@ -66,6 +70,7 @@ public sealed class DestinationDefinition
         DestinationKind.Dropbox => Dropbox,
         DestinationKind.OneDrive => OneDrive,
         DestinationKind.Rclone => Rclone,
+        DestinationKind.Telegram => Telegram,
         DestinationKind.Plugin => Plugin,
         _ => throw new NotSupportedException($"Destination kind {Kind} is not supported."),
     };
@@ -252,6 +257,34 @@ public sealed class WebDavOptions
 
     [Category("Connection"), Description("Accept any server certificate (self-signed NAS).")]
     public bool AcceptAnyCertificate { get; set; }
+}
+
+public enum TelegramService
+{
+    Telegram,
+    /// <summary>Bale messenger (Telegram-compatible Bot API).</summary>
+    Bale,
+}
+
+public sealed class TelegramOptions
+{
+    [Category("Bot"), Description("Telegram (api.telegram.org) or Bale (tapi.bale.ai).")]
+    public TelegramService Service { get; set; } = TelegramService.Telegram;
+
+    [Category("Bot"), Description("Bot token from @BotFather."), PasswordPropertyText(true), Secret]
+    public string? BotToken { get; set; }
+
+    [Category("Bot"), Description("Id of a private channel or group, e.g. -1001234567890. Make the bot an administrator that can post, pin and delete messages.")]
+    public string? ChatId { get; set; }
+
+    [Category("Connection"), Description("Optional relay when this server cannot reach the Bot API directly, e.g. a Cloudflare Worker (https://storix-relay.example.workers.dev) or a local Bot API server. Empty = the official API.")]
+    public string? ApiBaseUrl { get; set; }
+
+    [Category("Connection"), Description("Shared key sent to the relay in the X-Storix-Relay-Key header (set the same RELAY_KEY on the worker)."), PasswordPropertyText(true), Secret]
+    public string? RelayKey { get; set; }
+
+    [Category("Connection"), Description("Files are sent in parts of this size. Keep 19 MB for the official API (bots can only download files up to 20 MB); a local Bot API server allows up to 2000.")]
+    public int PartSizeMb { get; set; } = 19;
 }
 
 public sealed class DropboxOptions
