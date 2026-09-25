@@ -67,8 +67,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Docker volumes, Hyper-V VMs
 
 ### More destinations
-- [ ] Azure Blob, OneDrive/SharePoint, Dropbox, Backblaze B2, WebDAV/Nextcloud, SMB with explicit credentials
-- [ ] rclone adapter
+- [x] Azure Blob, OneDrive/SharePoint, Dropbox, WebDAV/Nextcloud, SMB with explicit credentials (Backblaze B2 via S3 or rclone)
+- [x] rclone adapter
 - [x] Presets for S3-compatible providers
 
 ### Restore experience

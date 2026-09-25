@@ -3,7 +3,7 @@
 **Storix** is an open-source backup agent for Windows.
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
 
-Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** or **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…). It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
+Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint** or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
 [![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
@@ -44,7 +44,12 @@ Backup Agent
 │   ├── FTP
 │   ├── SFTP
 │   ├── Google Drive
-│   └── S3 / S3-compatible
+│   ├── S3 / S3-compatible
+│   ├── Azure Blob Storage
+│   ├── WebDAV (Nextcloud, NAS)
+│   ├── Dropbox
+│   ├── OneDrive / SharePoint
+│   └── rclone (40+ providers)
 │
 └── Monitoring
     ├── Logs
@@ -151,7 +156,7 @@ dotnet test Storix.sln
 
 ### Integration tests
 
-These tests start real SFTP, FTP, S3 (LocalStack), SQL Server, MongoDB (replica set), PostgreSQL, MySQL and Redis servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
+These tests start real SFTP, FTP, S3 (LocalStack), Azure Blob (Azurite), SQL Server, MongoDB (replica set), PostgreSQL, MySQL and Redis servers in Docker, plus WebDAV and rclone (rclone must be installed). For each one they back up, restore and compare the data. They are opt-in:
 
 ```bash
 STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests
@@ -305,6 +310,7 @@ The manager also offers **New from template** (SQL Server nightly to S3, log bac
 - Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure.
 - `%ProgramData%\Storix` should be writable by administrators only.
 - For FTP, prefer **FTPS**, or better, **SFTP**. Enable *Accept any certificate* only for trusted self-signed servers. For SFTP, set the host key fingerprint.
+- **Dropbox / OneDrive** use OAuth with PKCE: register your own app (Dropbox App Console / Azure app registration, public client) with the redirect URI `http://localhost:53682/`, enter its key/client ID and click **Sign in**. Refresh tokens are stored encrypted.
 - **Google Drive** supports two sign-in modes:
   - **User account** (personal My Drive): create an OAuth client ID of type *Desktop app* in the Google Cloud console (with the Drive API enabled), enter the client ID and secret in the destination, and click **Sign in with Google**. The refresh token is stored encrypted.
   - **Service account**: service accounts have no storage quota of their own, so use a folder inside a **Shared Drive** and add the service account as a member.

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="FluentFTP" />
     <PackageReference Include="Google.Apis.Drive.v3" />

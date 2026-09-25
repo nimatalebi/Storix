@@ -9,6 +9,12 @@ public enum DestinationKind
     Sftp,
     GoogleDrive,
     S3,
+    AzureBlob,
+    WebDav,
+    Dropbox,
+    OneDrive,
+    /// <summary>Any of the 40+ providers supported by rclone.</summary>
+    Rclone,
 }
 
 public sealed class DestinationDefinition
@@ -34,6 +40,16 @@ public sealed class DestinationDefinition
 
     public S3Options S3 { get; set; } = new();
 
+    public AzureBlobOptions AzureBlob { get; set; } = new();
+
+    public WebDavOptions WebDav { get; set; } = new();
+
+    public DropboxOptions Dropbox { get; set; } = new();
+
+    public OneDriveOptions OneDrive { get; set; } = new();
+
+    public RcloneOptions Rclone { get; set; } = new();
+
     public object ActiveOptions => Kind switch
     {
         DestinationKind.LocalFolder => LocalFolder,
@@ -41,6 +57,11 @@ public sealed class DestinationDefinition
         DestinationKind.Sftp => Sftp,
         DestinationKind.GoogleDrive => GoogleDrive,
         DestinationKind.S3 => S3,
+        DestinationKind.AzureBlob => AzureBlob,
+        DestinationKind.WebDav => WebDav,
+        DestinationKind.Dropbox => Dropbox,
+        DestinationKind.OneDrive => OneDrive,
+        DestinationKind.Rclone => Rclone,
         _ => throw new NotSupportedException($"Destination kind {Kind} is not supported."),
     };
 
@@ -51,6 +72,12 @@ public sealed class LocalFolderOptions
 {
     [Category("Target"), Description("Local folder or UNC path (\\\\server\\share\\backups).")]
     public string Path { get; set; } = string.Empty;
+
+    [Category("Network share"), Description("Optional user for a UNC path, e.g. NAS\\backup or DOMAIN\\user. Empty = the service account.")]
+    public string? UserName { get; set; }
+
+    [Category("Network share"), PasswordPropertyText(true), Secret]
+    public string? Password { get; set; }
 }
 
 public enum FtpEncryption
@@ -177,4 +204,82 @@ public sealed class S3Options
 
     [Category("Transfer"), Description("Multipart part size in MB (5-512).")]
     public int PartSizeMb { get; set; } = 16;
+}
+
+public sealed class AzureBlobOptions
+{
+    [Category("Connection"), Description("Storage account connection string (Access keys page of the storage account)."), PasswordPropertyText(true), Secret]
+    public string? ConnectionString { get; set; }
+
+    [Category("Target")]
+    public string Container { get; set; } = "backups";
+
+    [Category("Target"), Description("Optional folder (prefix) inside the container.")]
+    public string? Prefix { get; set; }
+
+    [Category("Transfer"), Description("Access tier: Hot, Cool, Cold or Archive. Empty = account default.")]
+    public string? AccessTier { get; set; }
+}
+
+public sealed class WebDavOptions
+{
+    [Category("Connection"), Description("Folder URL, e.g. https://cloud.example.com/remote.php/dav/files/USER/backups (Nextcloud) or https://nas:5006/backups")]
+    public string Url { get; set; } = string.Empty;
+
+    [Category("Credentials")]
+    public string UserName { get; set; } = string.Empty;
+
+    [Category("Credentials"), Description("Password or app password."), PasswordPropertyText(true), Secret]
+    public string? Password { get; set; }
+
+    [Category("Connection"), Description("Accept any server certificate (self-signed NAS).")]
+    public bool AcceptAnyCertificate { get; set; }
+}
+
+public sealed class DropboxOptions
+{
+    [Category("Credentials"), Description("App key of your Dropbox app (App Console). Redirect URI: http://localhost:53682/")]
+    public string AppKey { get; set; } = string.Empty;
+
+    [Category("Credentials"), Description("Filled in by 'Sign in'."), PasswordPropertyText(true), Secret, ReadOnly(true)]
+    public string? RefreshToken { get; set; }
+
+    [Category("Credentials"), ReadOnly(true)]
+    public string? SignedInAs { get; set; }
+
+    [Category("Target"), Description("Folder, e.g. /Backups/server1")]
+    public string Folder { get; set; } = "/Storix";
+}
+
+public sealed class OneDriveOptions
+{
+    [Category("Credentials"), Description("Application (client) id of an Azure app registration (public client, redirect http://localhost:53682/).")]
+    public string ClientId { get; set; } = string.Empty;
+
+    [Category("Credentials"), Description("consumers (personal OneDrive), organizations, common, or your tenant id (OneDrive for Business / SharePoint).")]
+    public string Tenant { get; set; } = "common";
+
+    [Category("Credentials"), Description("Filled in by 'Sign in'."), PasswordPropertyText(true), Secret, ReadOnly(true)]
+    public string? RefreshToken { get; set; }
+
+    [Category("Credentials"), ReadOnly(true)]
+    public string? SignedInAs { get; set; }
+
+    [Category("Target"), Description("Folder in your OneDrive, e.g. Backups/server1")]
+    public string Folder { get; set; } = "Storix";
+}
+
+public sealed class RcloneOptions
+{
+    [Category("Tool"), Description("Full path to rclone(.exe). Empty = on PATH.")]
+    public string? RclonePath { get; set; }
+
+    [Category("Tool"), Description("Optional rclone.conf path (created with 'rclone config'). Empty = rclone default.")]
+    public string? ConfigPath { get; set; }
+
+    [Category("Target"), Description("Remote and folder, e.g. b2:bucket/backups or mydrive:Backups/server1")]
+    public string Remote { get; set; } = string.Empty;
+
+    [Category("Tool"), Description("Extra rclone flags, e.g. --b2-hard-delete")]
+    public string? ExtraArguments { get; set; }
 }

@@ -15,6 +15,7 @@ internal sealed class AppServices
         Runs = new RunRepository(database);
         Settings = new SettingsRepository(database, protector);
         SqlBackups = new SqlBackupRepository(database);
+        OAuthTokenStore.UseDatabase(Settings, protector);
     }
 
     public StorixDatabase Database { get; }

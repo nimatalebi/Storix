@@ -806,6 +806,11 @@ internal sealed class JobEditorForm : Form
         DestinationKind.Sftp => $"sftp://{d.Sftp.Host}:{d.Sftp.Port}/{d.Sftp.RemotePath.TrimStart('/')}",
         DestinationKind.GoogleDrive => $"Drive folder {d.GoogleDrive.FolderId}",
         DestinationKind.S3 => $"s3://{d.S3.BucketName}/{d.S3.Prefix?.Trim('/')}",
+        DestinationKind.AzureBlob => $"azure://{d.AzureBlob.Container}/{d.AzureBlob.Prefix?.Trim('/')}",
+        DestinationKind.WebDav => d.WebDav.Url,
+        DestinationKind.Dropbox => $"dropbox:{d.Dropbox.Folder}",
+        DestinationKind.OneDrive => $"onedrive:{d.OneDrive.Folder}",
+        DestinationKind.Rclone => d.Rclone.Remote,
         _ => string.Empty,
     };
 

@@ -28,6 +28,9 @@ try
     builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(45));
 
     var host = builder.Build();
+    NT.Storix.Core.Security.OAuthTokenStore.UseDatabase(
+        host.Services.GetRequiredService<NT.Storix.Core.Persistence.SettingsRepository>(),
+        host.Services.GetRequiredService<NT.Storix.Core.Security.ISecretProtector>());
     Log.Information("Storix service starting. Data folder: {DataFolder}", StorixPaths.DataDirectory);
     await host.RunAsync();
 }

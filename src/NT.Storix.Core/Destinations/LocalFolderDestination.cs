@@ -7,10 +7,22 @@ namespace NT.Storix.Core.Destinations;
 public sealed class LocalFolderDestination(LocalFolderOptions options, int maxUploadKBps = 0) : IBackupDestination
 {
     private const int BufferSize = 1024 * 1024;
+    private NetworkShare? _share;
 
-    private string Root => string.IsNullOrWhiteSpace(options.Path)
-        ? throw new InvalidOperationException("Local folder path is not configured.")
-        : options.Path;
+    private string Root
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(options.Path))
+            {
+                throw new InvalidOperationException("Local folder path is not configured.");
+            }
+
+            // Network shares with explicit credentials are connected on first use.
+            _share ??= NetworkShare.Connect(options.Path, options.UserName, options.Password);
+            return options.Path;
+        }
+    }
 
     public Task TestAsync(CancellationToken cancellationToken)
     {
@@ -87,5 +99,10 @@ public sealed class LocalFolderDestination(LocalFolderOptions options, int maxUp
         return Task.CompletedTask;
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        _share?.Dispose();
+        _share = null;
+        return ValueTask.CompletedTask;
+    }
 }

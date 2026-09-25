@@ -55,7 +55,7 @@ internal sealed class DestinationEditorForm : Form
         };
 
         _test = Ui.Button("Test connection", OnTest, 130);
-        _googleSignIn = Ui.Button("Sign in with Google...", OnGoogleSignIn, 170);
+        _googleSignIn = Ui.Button("Sign in...", OnSignIn, 130);
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 28 };
 
@@ -78,7 +78,60 @@ internal sealed class DestinationEditorForm : Form
 
     public DestinationDefinition Destination { get; }
 
-    private async void OnGoogleSignIn(object? sender, EventArgs e)
+    private async void OnSignIn(object? sender, EventArgs e)
+    {
+        switch (Destination.Kind)
+        {
+            case DestinationKind.GoogleDrive:
+                await GoogleSignInAsync();
+                break;
+            case DestinationKind.Dropbox:
+                await OAuthSignInAsync(
+                    string.IsNullOrWhiteSpace(Destination.Dropbox.AppKey) ? null : Destination.Dropbox.AppKey,
+                    "Enter the app key of your Dropbox app first (dropbox.com/developers/apps, redirect URI http://localhost:53682/).",
+                    ct => DropboxDestination.SignInAsync(Destination.Dropbox.AppKey, ct),
+                    token => Destination.Dropbox.RefreshToken = token);
+                break;
+            case DestinationKind.OneDrive:
+                await OAuthSignInAsync(
+                    string.IsNullOrWhiteSpace(Destination.OneDrive.ClientId) ? null : Destination.OneDrive.ClientId,
+                    "Enter the client id of an Azure app registration first (public client, redirect URI http://localhost:53682/, permission Files.ReadWrite).",
+                    ct => OneDriveDestination.SignInAsync(Destination.OneDrive.ClientId, Destination.OneDrive.Tenant, ct),
+                    token => Destination.OneDrive.RefreshToken = token);
+                break;
+        }
+    }
+
+    private async Task OAuthSignInAsync(string? clientId, string missingMessage, Func<CancellationToken, Task<NT.Storix.Core.Security.OAuthTokens>> signIn, Action<string> store)
+    {
+        if (clientId is null)
+        {
+            Dialogs.Error(this, missingMessage);
+            return;
+        }
+
+        _googleSignIn.Enabled = false;
+        UseWaitCursor = true;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var tokens = await signIn(timeout.Token);
+            store(tokens.RefreshToken ?? throw new InvalidOperationException("The provider did not return a refresh token."));
+            _grid.Refresh();
+            Dialogs.Info(this, "Connected. Use 'Test connection' to check the folder.");
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, $"Sign-in failed:\n\n{ex.Message}");
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            _googleSignIn.Enabled = true;
+        }
+    }
+
+    private async Task GoogleSignInAsync()
     {
         var drive = Destination.GoogleDrive;
         if (string.IsNullOrWhiteSpace(drive.OAuthClientId) || string.IsNullOrWhiteSpace(drive.OAuthClientSecret))
@@ -112,7 +165,7 @@ internal sealed class DestinationEditorForm : Form
 
     private void UpdatePresetVisibility()
     {
-        _googleSignIn.Visible = Destination.Kind == DestinationKind.GoogleDrive;
+        _googleSignIn.Visible = Destination.Kind is DestinationKind.GoogleDrive or DestinationKind.Dropbox or DestinationKind.OneDrive;
         var visible = Destination.Kind == DestinationKind.S3;
         _preset.Visible = _presetHint.Visible = visible;
         if (_preset.Parent is TableLayoutPanel table && table.GetControlFromPosition(0, table.GetRow(_preset)) is { } label)
