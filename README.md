@@ -146,6 +146,17 @@ STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests
 
 ### Publish and install
 
+The easiest way: download `Storix-<version>-x64.msi` from [GitHub Releases](https://github.com/nimatalebi/Storix/releases). The installer installs and starts the service and adds **Storix Manager** to the Start menu.
+
+To build it yourself:
+
+```powershell
+# MSI + portable ZIP + SHA256SUMS in ./artifacts (Windows)
+./build/package.ps1 -Version 1.0.0
+```
+
+Or publish without an installer:
+
 ```powershell
 # Publish the service and the manager into one folder
 ./build/publish.ps1 -Output C:\Tools\Storix
@@ -162,6 +173,11 @@ You can also install the service without the UI:
 ```
 
 The service runs as `LocalSystem`, uses *Automatic (Delayed Start)* and restarts automatically if it fails.
+
+### Releases
+
+Push a tag like `v1.2.0` and the `release` workflow builds the MSI and the portable ZIP, then publishes a GitHub release.
+To sign the binaries, add the repository secrets `STORIX_SIGN_CERT` (base64-encoded `.pfx`) and `STORIX_SIGN_PASSWORD`.
 
 ### Development
 

@@ -22,7 +22,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Fault-injection tests: service killed mid-run, network drop + resume, disk full, cancellation, corrupted/truncated archives
 - [x] Large-file test above 4 GB (ZIP64 + encryption, opt-in with `STORIX_LARGE_TESTS=1`) and files that change while archived
 - [x] Scheduler tests around DST changes and time zones; optional catch-up of missed runs
-- [ ] MSI installer (WiX), GitHub Releases, signed binaries
+- [x] MSI installer (WiX), GitHub Releases on `v*` tags, portable ZIP, SHA256SUMS
+- [ ] Signed binaries (the workflow signs automatically once the `STORIX_SIGN_CERT` / `STORIX_SIGN_PASSWORD` secrets are set)
 
 ## P1: missing essentials
 
