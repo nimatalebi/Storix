@@ -10,6 +10,7 @@ internal sealed class DestinationEditorForm : Form
     private readonly IDestinationFactory _factory;
     private readonly TextBox _name = new();
     private readonly CheckBox _enabled = new() { Text = "Enabled", AutoSize = true };
+    private readonly NumericUpDown _limit = Ui.Number(0, 10_000_000);
     private readonly ComboBox _kind;
     private readonly PropertyGrid _grid = new() { ToolbarVisible = false, PropertySort = PropertySort.Categorized, HelpVisible = true };
     private readonly Button _test;
@@ -24,12 +25,13 @@ internal sealed class DestinationEditorForm : Form
         Text = "Destination";
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
-        ClientSize = new Size(560, 520);
+        ClientSize = new Size(560, 560);
         MinimumSize = new Size(480, 420);
 
         _kind = Ui.EnumCombo(Destination.Kind);
         _name.Text = Destination.Name;
         _enabled.Checked = Destination.Enabled;
+        _limit.Value = Math.Clamp(Destination.MaxUploadKBps, 0, 10_000_000);
         _grid.SelectedObject = Destination.ActiveOptions;
         _preset.Items.Add("(choose a provider)");
         _preset.Items.AddRange(S3Preset.All.Cast<object>().ToArray());
@@ -59,6 +61,7 @@ internal sealed class DestinationEditorForm : Form
         grid.Row("Name", _name);
         grid.Row("Type", _kind);
         grid.Row(null, _enabled);
+        grid.Row("Upload limit (KB/s, 0 = unlimited)", _limit);
         grid.Row("S3 provider", _preset);
         grid.Row(null, _presetHint);
         grid.Row(null, _grid, height: 330);
@@ -104,6 +107,7 @@ internal sealed class DestinationEditorForm : Form
     {
         Destination.Name = _name.Text.Trim();
         Destination.Enabled = _enabled.Checked;
+        Destination.MaxUploadKBps = (int)_limit.Value;
         Destination.Kind = (DestinationKind)_kind.SelectedItem!;
     }
 

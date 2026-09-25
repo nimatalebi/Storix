@@ -29,4 +29,10 @@ public sealed class ScheduleDefinition
     /// When the service starts and a scheduled run was missed (machine off, service stopped), run the job once.
     /// </summary>
     public bool CatchUpMissedRuns { get; set; } = true;
+
+    /// <summary>
+    /// Optional daily window for uploads, e.g. "22:00-06:00" (in the schedule's time zone). Outside the window the
+    /// archive is prepared and the upload waits for the window to open.
+    /// </summary>
+    public string? UploadWindow { get; set; }
 }

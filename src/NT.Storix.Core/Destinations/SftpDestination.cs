@@ -4,7 +4,7 @@ using Renci.SshNet;
 
 namespace NT.Storix.Core.Destinations;
 
-public sealed class SftpDestination(SftpOptions options) : IBackupDestination
+public sealed class SftpDestination(SftpOptions options, int maxUploadKBps = 0) : IBackupDestination
 {
     private const int BufferSize = 256 * 1024;
     private SftpClient? _client;
@@ -39,7 +39,8 @@ public sealed class SftpDestination(SftpOptions options) : IBackupDestination
         var target = $"{RemoteDirectory}/{remoteName}";
         var partial = target + BackupNaming.PartialSuffix;
 
-        using var input = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+        using var file = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+        using var input = ThrottledStream.Wrap(file, maxUploadKBps);
 
         // Resume: append to an existing partial file if it is not larger than the source.
         long offset = 0;

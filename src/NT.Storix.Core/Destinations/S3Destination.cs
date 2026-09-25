@@ -11,7 +11,7 @@ namespace NT.Storix.Core.Destinations;
 /// Amazon S3 and S3-compatible storage. Large files use multipart uploads; an object only becomes
 /// visible when the upload completes, and abandoned multipart uploads are aborted before retrying.
 /// </summary>
-public sealed class S3Destination(S3Options options) : IBackupDestination
+public sealed class S3Destination(S3Options options, int maxUploadKBps = 0) : IBackupDestination
 {
     private AmazonS3Client? _client;
 
@@ -60,11 +60,14 @@ public sealed class S3Destination(S3Options options) : IBackupDestination
         // Partial upload cleanup: abort multipart uploads left by an interrupted attempt for this key.
         await AbortIncompleteUploadsAsync(client, key, cancellationToken);
 
+        await using var file = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true);
+        await using var stream = Processing.ThrottledStream.Wrap(file, maxUploadKBps);
         var request = new TransferUtilityUploadRequest
         {
             BucketName = Bucket,
             Key = key,
-            FilePath = localPath,
+            InputStream = stream,
+            AutoCloseStream = false,
             PartSize = Math.Clamp(options.PartSizeMb, 5, 512) * 1024L * 1024L,
         };
         if (!string.IsNullOrWhiteSpace(options.StorageClass))

@@ -37,7 +37,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Scheduled restore drills (for SQL: restore to a temp database + `DBCC CHECKDB`)
 - [ ] SQL Server differential and log backups with chain tracking; point-in-time restore
 - [x] Direct database restore from the UI (`RESTORE ... WITH MOVE`, `mongorestore`)
-- [ ] Bandwidth limit, allowed upload windows, pause on metered connections
+- [x] Bandwidth limit per destination and allowed upload windows per job
+- [ ] Pause uploads on metered connections
 - [x] Pre/post job hooks (PowerShell/cmd) with timeout and exit-code handling
 - [x] Cancel a running job from the UI
 - [ ] Pause and resume a running job

@@ -11,7 +11,7 @@ namespace NT.Storix.Core.Destinations;
 /// Google Drive destination authenticated with a service account. Uses the resumable upload protocol,
 /// so interrupted chunks are retried without re-sending the whole file.
 /// </summary>
-public sealed class GoogleDriveDestination(GoogleDriveOptions options) : IBackupDestination
+public sealed class GoogleDriveDestination(GoogleDriveOptions options, int maxUploadKBps = 0) : IBackupDestination
 {
     private DriveService? _service;
 
@@ -43,7 +43,8 @@ public sealed class GoogleDriveDestination(GoogleDriveOptions options) : IBackup
         // Remove leftovers with the same name (Drive allows duplicate names).
         await DeleteAsync(remoteName, cancellationToken);
 
-        await using var stream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true);
+        await using var file = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, useAsync: true);
+        await using var stream = Processing.ThrottledStream.Wrap(file, maxUploadKBps);
         var metadata = new DriveFile { Name = remoteName, Parents = [FolderId] };
         var request = service.Files.Create(metadata, stream, "application/octet-stream");
         request.SupportsAllDrives = true;

@@ -4,7 +4,7 @@ using NT.Storix.Core.Processing;
 
 namespace NT.Storix.Core.Destinations;
 
-public sealed class FtpDestination(FtpOptions options) : IBackupDestination
+public sealed class FtpDestination(FtpOptions options, int maxUploadKBps = 0) : IBackupDestination
 {
     private AsyncFtpClient? _client;
 
@@ -120,6 +120,7 @@ public sealed class FtpDestination(FtpOptions options) : IBackupDestination
         client.Config.ValidateAnyCertificate = options.AcceptAnyCertificate;
         client.Config.DataConnectionType = options.Passive ? FtpDataConnectionType.AutoPassive : FtpDataConnectionType.AutoActive;
         client.Config.RetryAttempts = 1;
+        client.Config.UploadRateLimit = (uint)Math.Max(0, maxUploadKBps);
 
         await client.Connect(cancellationToken);
         _client = client;

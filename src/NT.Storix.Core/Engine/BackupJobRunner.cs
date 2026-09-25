@@ -103,6 +103,18 @@ public sealed class BackupJobRunner(
             run.Sha256 = hash;
             log.Info($"SHA-256: {hash}");
 
+            // Wait for the allowed upload window (e.g. only at night).
+            if (UploadWindow.Parse(job.Schedule.UploadWindow) is { } window)
+            {
+                var zone = string.IsNullOrWhiteSpace(job.Schedule.TimeZoneId) ? TimeZoneInfo.Local : TimeZoneInfo.FindSystemTimeZoneById(job.Schedule.TimeZoneId);
+                var wait = window.Delay(DateTimeOffset.UtcNow, zone);
+                if (wait > TimeSpan.Zero)
+                {
+                    log.Info($"Outside the upload window {window}; waiting {wait:hh\\:mm} before uploading.");
+                    await Task.Delay(wait, cancellationToken);
+                }
+            }
+
             // 5. Destinations.
             var destinations = job.Destinations.Where(d => d.Enabled).ToList();
             var failures = new List<string>();
@@ -254,6 +266,15 @@ public sealed class BackupJobRunner(
         if (job.Processing.Encrypt && string.IsNullOrEmpty(job.Processing.EncryptionPassword) && string.IsNullOrWhiteSpace(job.Processing.EncryptionKeyFile))
         {
             errors.Add("Encryption is enabled but no password or key file is set.");
+        }
+
+        try
+        {
+            UploadWindow.Parse(job.Schedule.UploadWindow);
+        }
+        catch (FormatException ex)
+        {
+            errors.Add(ex.Message);
         }
 
         if (!job.Destinations.Any(d => d.Enabled))

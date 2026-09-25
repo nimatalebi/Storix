@@ -11,11 +11,11 @@ public sealed class DestinationFactory : IDestinationFactory
 {
     public IBackupDestination Create(DestinationDefinition definition) => definition.Kind switch
     {
-        DestinationKind.LocalFolder => new LocalFolderDestination(definition.LocalFolder),
-        DestinationKind.Ftp => new FtpDestination(definition.Ftp),
-        DestinationKind.Sftp => new SftpDestination(definition.Sftp),
-        DestinationKind.GoogleDrive => new GoogleDriveDestination(definition.GoogleDrive),
-        DestinationKind.S3 => new S3Destination(definition.S3),
+        DestinationKind.LocalFolder => new LocalFolderDestination(definition.LocalFolder, definition.MaxUploadKBps),
+        DestinationKind.Ftp => new FtpDestination(definition.Ftp, definition.MaxUploadKBps),
+        DestinationKind.Sftp => new SftpDestination(definition.Sftp, definition.MaxUploadKBps),
+        DestinationKind.GoogleDrive => new GoogleDriveDestination(definition.GoogleDrive, definition.MaxUploadKBps),
+        DestinationKind.S3 => new S3Destination(definition.S3, definition.MaxUploadKBps),
         _ => throw new NotSupportedException($"Destination kind {definition.Kind} is not supported."),
     };
 }

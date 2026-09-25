@@ -3,7 +3,8 @@ using NT.Storix.Core.Processing;
 
 namespace NT.Storix.Core.Destinations;
 
-public sealed class LocalFolderDestination(LocalFolderOptions options) : IBackupDestination
+/// <param name="maxUploadKBps">Bandwidth limit in KB/s (0 = unlimited).</param>
+public sealed class LocalFolderDestination(LocalFolderOptions options, int maxUploadKBps = 0) : IBackupDestination
 {
     private const int BufferSize = 1024 * 1024;
 
@@ -54,7 +55,8 @@ public sealed class LocalFolderDestination(LocalFolderOptions options) : IBackup
             await using var output = new FileStream(partial, existing > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
             input.Position = existing;
 
-            await StreamCopy.CopyAsync(input, output, progress, cancellationToken, existing);
+            await using var source = ThrottledStream.Wrap(input, maxUploadKBps);
+            await StreamCopy.CopyAsync(source, output, progress, cancellationToken, existing);
             await output.FlushAsync(cancellationToken);
         }
 

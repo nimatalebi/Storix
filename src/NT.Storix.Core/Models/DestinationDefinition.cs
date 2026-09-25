@@ -21,6 +21,9 @@ public sealed class DestinationDefinition
 
     public DestinationKind Kind { get; set; } = DestinationKind.LocalFolder;
 
+    /// <summary>Upload bandwidth limit in KB/s. 0 means unlimited.</summary>
+    public int MaxUploadKBps { get; set; }
+
     public LocalFolderOptions LocalFolder { get; set; } = new();
 
     public FtpOptions Ftp { get; set; } = new();
