@@ -30,7 +30,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Amazon S3 and S3-compatible destinations (MinIO, Wasabi, R2, B2) with provider presets
 - [x] Chunked archives (split volumes) with chunk-level resume
 - [x] Restore from a destination or a local folder (restore wizard in the manager)
-- [ ] Google Drive OAuth sign-in for personal "My Drive"
+- [x] Google Drive OAuth sign-in for personal "My Drive"
 - [x] Webhook notifications (JSON, HMAC-signed)
 - [x] VSS snapshots for open and locked files
 - [x] Dead man's switch: alert when a job has not succeeded for X hours; ping healthchecks.io / Uptime Kuma

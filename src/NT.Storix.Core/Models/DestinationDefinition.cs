@@ -114,12 +114,35 @@ public sealed class SftpOptions
     public string RemotePath { get; set; } = ".";
 }
 
+public enum GoogleDriveAuthMode
+{
+    /// <summary>Service account JSON key (use a folder in a Shared Drive).</summary>
+    ServiceAccount,
+    /// <summary>Your own Google account (OAuth), e.g. personal "My Drive".</summary>
+    UserAccount,
+}
+
 public sealed class GoogleDriveOptions
 {
-    [Category("Credentials"), Description("Path to a Google Cloud service account JSON key file.")]
+    [Category("Credentials"), Description("ServiceAccount: key file + Shared Drive. UserAccount: sign in with your Google account (My Drive).")]
+    public GoogleDriveAuthMode AuthMode { get; set; } = GoogleDriveAuthMode.ServiceAccount;
+
+    [Category("Credentials"), Description("ServiceAccount: path to a Google Cloud service account JSON key file.")]
     public string ServiceAccountKeyPath { get; set; } = string.Empty;
 
-    [Category("Target"), Description("Id of the Drive folder (preferably inside a Shared Drive) shared with the service account.")]
+    [Category("Credentials"), Description("UserAccount: OAuth client id (Google Cloud console → Credentials → OAuth client ID → Desktop app).")]
+    public string? OAuthClientId { get; set; }
+
+    [Category("Credentials"), Description("UserAccount: OAuth client secret."), PasswordPropertyText(true), Secret]
+    public string? OAuthClientSecret { get; set; }
+
+    [Category("Credentials"), Description("UserAccount: filled in by 'Sign in with Google'."), PasswordPropertyText(true), Secret, ReadOnly(true)]
+    public string? RefreshToken { get; set; }
+
+    [Category("Credentials"), Description("UserAccount: the signed-in Google account."), ReadOnly(true)]
+    public string? SignedInAs { get; set; }
+
+    [Category("Target"), Description("Id of the Drive folder (from its URL). UserAccount: empty = root of My Drive.")]
     public string FolderId { get; set; } = string.Empty;
 
     [Category("Transfer"), Description("Upload chunk size in MB (multiple of 0.25).")]

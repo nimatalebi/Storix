@@ -261,7 +261,9 @@ The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix
 - Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure.
 - `%ProgramData%\Storix` should be writable by administrators only.
 - For FTP, prefer **FTPS**, or better, **SFTP**. Enable *Accept any certificate* only for trusted self-signed servers. For SFTP, set the host key fingerprint.
-- **Google Drive** uses a service account. Service accounts have no storage quota of their own, so use a folder inside a **Shared Drive** and add the service account as a member.
+- **Google Drive** supports two sign-in modes:
+  - **User account** (personal My Drive): create an OAuth client ID of type *Desktop app* in the Google Cloud console (with the Drive API enabled), enter the client ID and secret in the destination, and click **Sign in with Google**. The refresh token is stored encrypted.
+  - **Service account**: service accounts have no storage quota of their own, so use a folder inside a **Shared Drive** and add the service account as a member.
 
 ---
 

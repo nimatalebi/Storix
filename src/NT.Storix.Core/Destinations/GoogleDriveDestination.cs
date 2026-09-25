@@ -1,4 +1,3 @@
-using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Upload;
@@ -102,9 +101,11 @@ public sealed class GoogleDriveDestination(GoogleDriveOptions options, int maxUp
         return ValueTask.CompletedTask;
     }
 
-    private string FolderId => string.IsNullOrWhiteSpace(options.FolderId)
-        ? throw new InvalidOperationException("Google Drive folder id is not configured.")
-        : options.FolderId.Trim();
+    private string FolderId => !string.IsNullOrWhiteSpace(options.FolderId)
+        ? options.FolderId.Trim()
+        : options.AuthMode == GoogleDriveAuthMode.UserAccount
+            ? "root"
+            : throw new InvalidOperationException("Google Drive folder id is not configured.");
 
     private async Task<List<DriveFile>> QueryAsync(string query, CancellationToken cancellationToken)
     {
@@ -132,24 +133,9 @@ public sealed class GoogleDriveDestination(GoogleDriveOptions options, int maxUp
 
     private DriveService GetService()
     {
-        if (_service is not null)
+        _service ??= new DriveService(new BaseClientService.Initializer
         {
-            return _service;
-        }
-
-        if (string.IsNullOrWhiteSpace(options.ServiceAccountKeyPath) || !File.Exists(options.ServiceAccountKeyPath))
-        {
-            throw new InvalidOperationException("Google Drive service account key file was not found.");
-        }
-
-        var credential = CredentialFactory
-            .FromFile<ServiceAccountCredential>(options.ServiceAccountKeyPath)
-            .ToGoogleCredential()
-            .CreateScoped(DriveService.ScopeConstants.Drive);
-
-        _service = new DriveService(new BaseClientService.Initializer
-        {
-            HttpClientInitializer = credential,
+            HttpClientInitializer = GoogleDriveAuth.CreateCredential(options),
             ApplicationName = "Storix",
         });
         return _service;

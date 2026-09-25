@@ -14,6 +14,7 @@ internal sealed class DestinationEditorForm : Form
     private readonly ComboBox _kind;
     private readonly PropertyGrid _grid = new() { ToolbarVisible = false, PropertySort = PropertySort.Categorized, HelpVisible = true };
     private readonly Button _test;
+    private readonly Button _googleSignIn;
     private readonly ComboBox _preset = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220, Anchor = AnchorStyles.Left };
     private readonly Label _presetHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(480, 0) };
 
@@ -54,6 +55,7 @@ internal sealed class DestinationEditorForm : Form
         };
 
         _test = Ui.Button("Test connection", OnTest, 130);
+        _googleSignIn = Ui.Button("Sign in with Google...", OnGoogleSignIn, 170);
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 28 };
 
@@ -65,7 +67,7 @@ internal sealed class DestinationEditorForm : Form
         grid.Row("S3 provider", _preset);
         grid.Row(null, _presetHint);
         grid.Row(null, _grid, height: 330);
-        grid.Row(null, Ui.Buttons(_test, ok, cancel));
+        grid.Row(null, Ui.Buttons(_googleSignIn, _test, ok, cancel));
         grid.Fill();
 
         AcceptButton = ok;
@@ -76,8 +78,41 @@ internal sealed class DestinationEditorForm : Form
 
     public DestinationDefinition Destination { get; }
 
+    private async void OnGoogleSignIn(object? sender, EventArgs e)
+    {
+        var drive = Destination.GoogleDrive;
+        if (string.IsNullOrWhiteSpace(drive.OAuthClientId) || string.IsNullOrWhiteSpace(drive.OAuthClientSecret))
+        {
+            Dialogs.Error(this, "Enter the OAuth client id and client secret first.\n\nGoogle Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID → Desktop app (enable the Google Drive API).");
+            return;
+        }
+
+        _googleSignIn.Enabled = false;
+        UseWaitCursor = true;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var (token, email) = await GoogleDriveAuth.SignInAsync(drive.OAuthClientId, drive.OAuthClientSecret, timeout.Token);
+            drive.AuthMode = GoogleDriveAuthMode.UserAccount;
+            drive.RefreshToken = token;
+            drive.SignedInAs = email;
+            _grid.Refresh();
+            Dialogs.Info(this, $"Signed in as {email ?? "your Google account"}.");
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, $"Google sign-in failed:\n\n{ex.Message}");
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            _googleSignIn.Enabled = true;
+        }
+    }
+
     private void UpdatePresetVisibility()
     {
+        _googleSignIn.Visible = Destination.Kind == DestinationKind.GoogleDrive;
         var visible = Destination.Kind == DestinationKind.S3;
         _preset.Visible = _presetHint.Visible = visible;
         if (_preset.Parent is TableLayoutPanel table && table.GetControlFromPosition(0, table.GetRow(_preset)) is { } label)
