@@ -75,7 +75,7 @@ public sealed class BackupJobRunner(
             await CheckpointAsync(job, log, uploading: false, cancellationToken);
 
             // 2. Compression.
-            var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false));
+            var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false, ArchiveBuilder.UsesZstd(job.Processing.Compression)));
             var archive = await ArchiveBuilder.CreateAsync(snapshot.Entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
             log.Info($"Archive created: {archive.EntryCount} file(s), {FormatSize(archive.SizeBytes)}{(archive.SkippedCount > 0 ? $", {archive.SkippedCount} skipped" : string.Empty)}.");
 

@@ -20,7 +20,12 @@ public sealed class LargeFactAttribute : FactAttribute
 public class LargeFileTests
 {
     [LargeFact]
-    public async Task File_larger_than_4GB_round_trips_through_zip64_and_encryption()
+    public Task File_larger_than_4GB_round_trips_through_zip64_and_encryption() => RoundTripAsync(ArchiveCompression.Fastest);
+
+    [LargeFact]
+    public Task File_larger_than_4GB_round_trips_through_zstd() => RoundTripAsync(ArchiveCompression.Zstd);
+
+    private static async Task RoundTripAsync(ArchiveCompression compression)
     {
         const long size = 4L * 1024 * 1024 * 1024 + 123_457; // Just over the classic ZIP 4 GB limit.
         using var temp = new TempDirectory();
@@ -40,7 +45,7 @@ public class LargeFileTests
 
         var sourceHash = await Checksum.Sha256Async(source, CancellationToken.None);
         var zip = temp.Combine("big.zip");
-        var archive = await ArchiveBuilder.CreateAsync([new ArchiveEntry(source, "big.bin")], zip, ArchiveCompression.Fastest, null, CancellationToken.None);
+        var archive = await ArchiveBuilder.CreateAsync([new ArchiveEntry(source, "big.bin")], zip, compression, null, CancellationToken.None);
         await ArchiveBuilder.VerifyAsync(zip, archive.EntryCount, CancellationToken.None);
 
         var encrypted = zip + AesFileEncryptor.FileExtension;

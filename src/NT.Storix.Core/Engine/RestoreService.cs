@@ -191,7 +191,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         try
         {
             var zip = await DownloadAsZipAsync(destination, backupName, secret, temp, cancellationToken);
-            return BackupIndex.FromZip(zip, backupName);
+            return await BackupIndex.FromZipAsync(zip, backupName, cancellationToken);
         }
         finally
         {
@@ -263,8 +263,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         var rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
         Directory.CreateDirectory(root);
 
-        await using var stream = new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.Read, StreamCopy.BufferSize, useAsync: true);
-        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        using var zip = await ArchiveBuilder.OpenReadAsync(zipPath, cancellationToken);
 
         // Validate every path first so a malicious archive cannot write anything outside the target.
         var plan = new List<(ZipArchiveEntry Entry, string Path)>();

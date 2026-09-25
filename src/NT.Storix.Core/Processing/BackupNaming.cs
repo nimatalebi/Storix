@@ -5,7 +5,7 @@ using NT.Storix.Core.Destinations;
 namespace NT.Storix.Core.Processing;
 
 /// <summary>
-/// Naming convention: <c>{prefix}_{yyyyMMdd_HHmmss}.zip[.aes]</c> (timestamp in UTC), plus <c>.sha256</c> sidecars.
+/// Naming convention: <c>{prefix}_{yyyyMMdd_HHmmss}.zip[.zst][.aes]</c> (timestamp in UTC), plus <c>.sha256</c> sidecars.
 /// Split backups use <c>{name}.partNNNN</c> volumes and a <c>{name}.manifest.json</c> file.
 /// </summary>
 public static partial class BackupNaming
@@ -13,8 +13,8 @@ public static partial class BackupNaming
     public const string PartialSuffix = ".partial";
     private const string TimestampFormat = "yyyyMMdd_HHmmss";
 
-    public static string CreateFileName(string prefix, DateTimeOffset timestampUtc, bool encrypted) =>
-        $"{prefix}_{timestampUtc.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}.zip{(encrypted ? AesFileEncryptor.FileExtension : string.Empty)}";
+    public static string CreateFileName(string prefix, DateTimeOffset timestampUtc, bool encrypted, bool zstd = false) =>
+        $"{prefix}_{timestampUtc.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}.zip{(zstd ? ArchiveBuilder.ZstdExtension : string.Empty)}{(encrypted ? AesFileEncryptor.FileExtension : string.Empty)}";
 
     /// <summary>
     /// Groups remote file names into backups that belong to <paramref name="prefix"/>. A backup is either a
@@ -109,7 +109,17 @@ public static partial class BackupNaming
         }
 
         var rest = name[start.Length..];
-        if (!(rest.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || rest.EndsWith(".zip" + AesFileEncryptor.FileExtension, StringComparison.OrdinalIgnoreCase)))
+        if (rest.EndsWith(AesFileEncryptor.FileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            rest = rest[..^AesFileEncryptor.FileExtension.Length];
+        }
+
+        if (rest.EndsWith(ArchiveBuilder.ZstdExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            rest = rest[..^ArchiveBuilder.ZstdExtension.Length];
+        }
+
+        if (!rest.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

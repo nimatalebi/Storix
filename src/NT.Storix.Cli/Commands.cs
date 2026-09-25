@@ -23,7 +23,7 @@ internal static class Commands
           storix restore <backup> --to DIR [--password P] [--key-file F] [--include PATH]... [--overwrite]
           storix decrypt <file.aes> <output> [--password P] [--key-file F]
           storix keygen --out private.pem [--passphrase P]           Create an RSA key pair for public-key encryption
-            <backup> is a .zip / .zip.aes file, a .manifest.json or any .partNNNN volume.
+            <backup> is a .zip / .zip.zst / .aes file, a .manifest.json or any .partNNNN volume.
             Public-key backups: --key-file private.pem and --password <passphrase of the key>.
             Use --password-env NAME to read the password from an environment variable.
 

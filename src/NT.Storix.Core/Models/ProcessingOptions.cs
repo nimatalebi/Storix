@@ -6,6 +6,10 @@ public enum ArchiveCompression
     Fastest,
     Optimal,
     Smallest,
+    /// <summary>Zstandard (level 3): about as small as Optimal, several times faster. Produces <c>.zip.zst</c>.</summary>
+    Zstd,
+    /// <summary>Zstandard (level 19): smallest files, slow to create, fast to restore. Produces <c>.zip.zst</c>.</summary>
+    ZstdSmallest,
 }
 
 public enum EncryptionMode

@@ -99,10 +99,10 @@ public sealed class BackupIndex
         }
     }
 
-    /// <summary>Builds an index from an existing (unencrypted) ZIP, for backups made before indexes existed.</summary>
-    public static BackupIndex FromZip(string zipPath, string archiveName)
+    /// <summary>Builds an index from an existing (unencrypted) archive, for backups made before indexes existed.</summary>
+    public static async Task<BackupIndex> FromZipAsync(string zipPath, string archiveName, CancellationToken cancellationToken)
     {
-        using var zip = ZipFile.OpenRead(zipPath);
+        using var zip = await ArchiveBuilder.OpenReadAsync(zipPath, cancellationToken);
         return new BackupIndex
         {
             Archive = archiveName,

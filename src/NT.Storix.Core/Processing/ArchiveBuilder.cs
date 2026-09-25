@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using NT.Storix.Core.Models;
+using ZstdSharp;
 
 namespace NT.Storix.Core.Processing;
 
@@ -9,10 +10,72 @@ public sealed record ArchiveResult(string Path, int EntryCount, int SkippedCount
     public IReadOnlyList<IndexEntry> Entries { get; init; } = [];
 }
 
-/// <summary>Builds ZIP (Zip64 capable) archives by streaming files from disk.</summary>
+/// <summary>
+/// Builds ZIP (Zip64 capable) archives by streaming files from disk. With zstd the entries are stored
+/// uncompressed and the whole ZIP is wrapped in one Zstandard frame (<c>.zip.zst</c>, readable with
+/// <c>zstd -d</c> and any ZIP tool).
+/// </summary>
 public static class ArchiveBuilder
 {
     private const int BufferSize = 1024 * 1024;
+
+    public const string ZstdExtension = ".zst";
+
+    private static readonly byte[] ZstdMagic = [0x28, 0xB5, 0x2F, 0xFD];
+
+    public static bool UsesZstd(ArchiveCompression compression) => compression is ArchiveCompression.Zstd or ArchiveCompression.ZstdSmallest;
+
+    /// <summary>True when the file starts with a Zstandard frame.</summary>
+    public static bool IsZstdFile(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        Span<byte> header = stackalloc byte[4];
+        return stream.ReadAtLeast(header, 4, throwOnEndOfStream: false) == 4 && header.SequenceEqual(ZstdMagic);
+    }
+
+    /// <summary>
+    /// Opens a backup archive for reading, plain or zstd-wrapped. A zstd archive is decompressed to a temporary
+    /// file that is deleted when the returned archive is disposed.
+    /// </summary>
+    public static async Task<ZipArchive> OpenReadAsync(string archivePath, CancellationToken cancellationToken)
+    {
+        if (!IsZstdFile(archivePath))
+        {
+            var plain = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
+            return new ZipArchive(plain, ZipArchiveMode.Read, leaveOpen: false);
+        }
+
+        // Next to the archive (usually the staging or work folder, which has room); the temp folder when read-only.
+        FileStream output;
+        try
+        {
+            output = CreateTempFile(Path.GetDirectoryName(Path.GetFullPath(archivePath))!);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            output = CreateTempFile(Path.GetTempPath());
+        }
+
+        try
+        {
+            await using (var input = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true))
+            await using (var zstd = new DecompressionStream(input))
+            {
+                await zstd.CopyToAsync(output, BufferSize, cancellationToken);
+            }
+
+            output.Position = 0;
+            return new ZipArchive(output, ZipArchiveMode.Read, leaveOpen: false);
+        }
+        catch
+        {
+            await output.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static FileStream CreateTempFile(string folder) =>
+        new(Path.Combine(folder, $".{Guid.NewGuid():N}.zip.tmp"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
 
     public static async Task<ArchiveResult> CreateAsync(
         IReadOnlyCollection<ArchiveEntry> entries,
@@ -27,7 +90,8 @@ public static class ArchiveBuilder
         var index = new List<IndexEntry>(entries.Count);
 
         await using (var output = new FileStream(archivePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, BufferSize, useAsync: true))
-        await using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: false))
+        await using (var body = UsesZstd(compression) ? new CompressionStream(output, compression == ArchiveCompression.ZstdSmallest ? 19 : 3, BufferSize, leaveOpen: true) : null)
+        await using (var zip = new ZipArchive((Stream?)body ?? output, ZipArchiveMode.Create, leaveOpen: true))
         {
             foreach (var entry in entries)
             {
@@ -69,8 +133,7 @@ public static class ArchiveBuilder
     /// <summary>Reads every entry of the archive to make sure it is complete and not corrupted.</summary>
     public static async Task VerifyAsync(string archivePath, int expectedEntries, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
-        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        using var zip = await OpenReadAsync(archivePath, cancellationToken);
 
         if (zip.Entries.Count != expectedEntries)
         {
@@ -97,7 +160,7 @@ public static class ArchiveBuilder
 
     private static CompressionLevel ToLevel(ArchiveCompression compression) => compression switch
     {
-        ArchiveCompression.None => CompressionLevel.NoCompression,
+        ArchiveCompression.None or ArchiveCompression.Zstd or ArchiveCompression.ZstdSmallest => CompressionLevel.NoCompression,
         ArchiveCompression.Fastest => CompressionLevel.Fastest,
         ArchiveCompression.Smallest => CompressionLevel.SmallestSize,
         _ => CompressionLevel.Optimal,

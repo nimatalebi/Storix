@@ -56,7 +56,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Windows password confirmation before restore, delete, export with secrets and service changes
 
 ### Storage efficiency
-- [ ] zstd compression
+- [x] zstd compression
 - [ ] Content-defined chunking and deduplication (incremental-forever)
 - [ ] Incremental file backups using a file index
 - [ ] Build once and upload to many destinations; copy jobs for the 3-2-1 rule

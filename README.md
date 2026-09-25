@@ -222,7 +222,7 @@ dotnet run --project src/NT.Storix.Service
    - **Files**: files and folders, one per line, plus exclude patterns (`*.tmp`, `node_modules`…).
    - **SQL Server**: a connection string and databases. **Load databases** lists them from the server. The `.bak` file is written by the SQL Server engine, so when the server is remote, set a **backup directory** (UNC path) that both SQL Server and Storix can reach.
    - **MongoDB**: a connection string, an optional database and optional `--oplog`.
-4. **Processing**: compression level, AES-256 encryption and verification.
+4. **Processing**: compression (ZIP levels or zstd), AES-256 encryption and verification.
 5. **Destinations**: add one or more. **Test connection** checks the settings.
 6. **Retention & Retry**, then **Notifications** (e-mail; set up SMTP in **Settings**).
 7. Save. Use **Run now** to start a backup right away and follow it in **History**.
@@ -239,6 +239,8 @@ Each run produces:
 <job-name>_<yyyyMMdd_HHmmss>.zip          (or .zip.aes when encrypted)
 <job-name>_<yyyyMMdd_HHmmss>.zip.sha256
 ```
+
+With **Zstd** or **ZstdSmallest** compression the archive is `.zip.zst` (`.zip.zst.aes` when encrypted): a normal ZIP with stored entries, wrapped in a single Zstandard frame. Zstd (level 3) is usually as small as ZIP *Optimal* and several times faster; ZstdSmallest (level 19) is slower to create but gives the smallest files. Without Storix, run `zstd -d file.zip.zst` and open the ZIP with any tool. Older `.zip` backups keep working.
 
 Every backup also gets a `<name>.index` file: a compressed list of the files it contains (encrypted like the archive). The manager uses it to browse, search and restore single files.
 
@@ -262,7 +264,7 @@ Without the manager:
 
 1. Check the file: `sha256sum -c file.zip.aes.sha256` (or `Get-FileHash` in PowerShell).
 2. Decrypt `.zip.aes` files with **Tools → Decrypt backup file…**.
-3. Extract the ZIP, then use `RESTORE DATABASE` or `mongorestore --archive=...`.
+3. For `.zip.zst` files, run `zstd -d` first. Extract the ZIP, then use `RESTORE DATABASE` or `mongorestore --archive=...`.
 
 The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix.Core/Processing/AesFileEncryptor.cs):
 
