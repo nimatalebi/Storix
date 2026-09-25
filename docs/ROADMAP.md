@@ -79,7 +79,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ### Monitoring and UX
 - [ ] Tray icon with status and "run now"
 - [x] Telegram / Bale / Slack / Teams / Discord notifications
-- [ ] Weekly summary e-mail
+- [x] Weekly summary e-mail (and chat channels)
 - [ ] Dashboard: storage per destination, growth trend, success rate
 - [ ] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode

@@ -35,6 +35,10 @@ internal sealed class MainForm : Form
     private readonly TextBox _smtpUser = new();
     private readonly TextBox _smtpPassword = new() { UseSystemPasswordChar = true };
     private readonly TextBox _smtpFrom = new();
+    private readonly CheckBox _summaryEnabled = new() { Text = "Send a weekly summary", AutoSize = true };
+    private readonly TextBox _summaryRecipients = new();
+    private readonly ComboBox _summaryDay = Ui.EnumCombo(DayOfWeek.Monday);
+    private readonly NumericUpDown _summaryHour = Ui.Number(0, 23, 8);
     private readonly ListView _channels = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false };
     private List<NotificationChannel> _channelList = [];
 
@@ -604,6 +608,10 @@ internal sealed class MainForm : Form
         grid.Row("Password", _smtpPassword);
         grid.Row("From address", _smtpFrom);
         grid.Row(null, Ui.Buttons(Ui.Button("Send test e-mail...", (_, _) => SendTestEmail(), 150)));
+        grid.Row(null, _summaryEnabled);
+        grid.Row("Summary recipients", _summaryRecipients);
+        grid.Row("Summary day", _summaryDay);
+        grid.Row("Summary hour", _summaryHour);
         grid.Row(null, new Label { Text = "Chat and webhook channels (receive notifications of every job)", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
         _channels.Columns.Add("Name", 200);
         _channels.Columns.Add("Type", 100);
@@ -637,6 +645,10 @@ internal sealed class MainForm : Form
         _smtpPassword.Text = settings.Smtp.Password;
         _smtpFrom.Text = settings.Smtp.From;
         _channelList = settings.Channels;
+        _summaryEnabled.Checked = settings.WeeklySummary.Enabled;
+        _summaryRecipients.Text = settings.WeeklySummary.Recipients;
+        _summaryDay.SelectedItem = settings.WeeklySummary.Day;
+        _summaryHour.Value = Math.Clamp(settings.WeeklySummary.Hour, 0, 23);
         RefreshChannels();
     }
 
@@ -735,6 +747,13 @@ internal sealed class MainForm : Form
         settings.RequireWindowsConfirmation = _requireConfirmation.Checked;
         settings.Smtp = ReadSmtp();
         settings.Channels = _channelList;
+        settings.WeeklySummary = new WeeklySummarySettings
+        {
+            Enabled = _summaryEnabled.Checked,
+            Recipients = string.IsNullOrWhiteSpace(_summaryRecipients.Text) ? null : _summaryRecipients.Text.Trim(),
+            Day = (DayOfWeek)_summaryDay.SelectedItem!,
+            Hour = (int)_summaryHour.Value,
+        };
 
         _services.Audit.Add("settings.update", "settings", AuditDiff.Describe(_services.Settings.Get(), settings));
         _services.Settings.Save(settings);

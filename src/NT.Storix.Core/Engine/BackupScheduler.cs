@@ -60,6 +60,7 @@ public sealed class BackupScheduler(
                     {
                         _lastHealthCheck = now;
                         await CheckStaleJobsAsync(now);
+                        await SendWeeklySummaryIfDueAsync(now);
                     }
                 }
                 catch (Exception ex)
@@ -229,6 +230,22 @@ public sealed class BackupScheduler(
                 completion.TrySetResult();
             }
         }, CancellationToken.None);
+    }
+
+    /// <summary>Sends the weekly summary (e-mail and chat channels) on the configured day and hour.</summary>
+    internal async Task<bool> SendWeeklySummaryIfDueAsync(DateTimeOffset nowUtc)
+    {
+        var summary = settings.Get().WeeklySummary;
+        DateTimeOffset? lastSent = settings.GetValue("summary:last") is { } stored ? DateTimeOffset.Parse(stored, System.Globalization.CultureInfo.InvariantCulture) : null;
+        if (!SummaryReport.IsDue(summary, nowUtc, lastSent, TimeZoneInfo.Local))
+        {
+            return false;
+        }
+
+        settings.SetValue("summary:last", nowUtc.ToString("O"));
+        var text = SummaryReport.Build(jobs.GetAll(), runs.GetRecent(null, 5000), nowUtc.AddDays(-7), nowUtc);
+        await BackupJobRunner.NotifyAsync(notifiers, new Notification(NotificationEvent.Summary, $"📊 Storix weekly summary - {Environment.MachineName}", text), logger);
+        return true;
     }
 
     /// <summary>Dead man's switch: alerts for enabled jobs without a recent successful backup.</summary>

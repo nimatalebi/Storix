@@ -12,7 +12,9 @@ public sealed class EmailNotifier(SettingsRepository settingsRepository, ILogger
 {
     public async Task NotifyAsync(Notification notification, CancellationToken cancellationToken)
     {
-        var recipients = notification.Job?.Notifications.EmailTo;
+        var recipients = notification.Event == NotificationEvent.Summary
+            ? settingsRepository.Get().WeeklySummary.Recipients
+            : notification.Job?.Notifications.EmailTo;
         if (string.IsNullOrWhiteSpace(recipients))
         {
             return;

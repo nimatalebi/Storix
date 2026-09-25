@@ -21,6 +21,20 @@ public sealed class AppSettings
 
     /// <summary>Chat and webhook channels that receive notifications of every job.</summary>
     public List<NotificationChannel> Channels { get; set; } = [];
+
+    public WeeklySummarySettings WeeklySummary { get; set; } = new();
+}
+
+public sealed class WeeklySummarySettings
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>E-mail recipients (comma separated). Chat channels also receive the summary.</summary>
+    public string? Recipients { get; set; }
+
+    public DayOfWeek Day { get; set; } = DayOfWeek.Monday;
+
+    public int Hour { get; set; } = 8;
 }
 
 public sealed class SmtpSettings

@@ -9,6 +9,7 @@ public enum NotificationEvent
     /// <summary>Dead man's switch: no successful backup for too long.</summary>
     Stale,
     Test,
+    Summary,
 }
 
 /// <summary>A message about a job, delivered by every configured notifier.</summary>
