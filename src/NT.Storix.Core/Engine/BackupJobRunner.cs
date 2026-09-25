@@ -140,9 +140,14 @@ public sealed partial class BackupJobRunner(
 
         await CheckpointAsync(job, log, uploading: false, cancellationToken);
 
+        // Incremental file backups: only changed files, plus the chain metadata.
+        IReadOnlyCollection<ArchiveEntry> entries = snapshot.Entries;
+        var plan = PlanIncremental(job, run, snapshot.Entries, staging, log, ref entries);
+
         // 2. Compression.
-        var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(job.FilePrefix, run.StartedAt, encrypted: false, ArchiveBuilder.UsesZstd(job.Processing.Compression)));
-        var archive = await ArchiveBuilder.CreateAsync(snapshot.Entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
+        var zipPath = Path.Combine(staging, BackupNaming.CreateFileName(
+            job.FilePrefix, run.StartedAt, encrypted: false, ArchiveBuilder.UsesZstd(job.Processing.Compression), incremental: plan is { Full: false }));
+        var archive = await ArchiveBuilder.CreateAsync(entries, zipPath, job.Processing.Compression, log.Warn, cancellationToken);
         log.Info($"Archive created: {archive.EntryCount} file(s), {FormatSize(archive.SizeBytes)}{(archive.SkippedCount > 0 ? $", {archive.SkippedCount} skipped" : string.Empty)}.");
 
         if (job.Processing.VerifyArchive)
@@ -183,7 +188,7 @@ public sealed partial class BackupJobRunner(
 
         // File index for browsing and single-file restores (encrypted like the archive).
         var indexPath = finalPath + BackupIndex.Extension;
-        await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries] }
+        await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries.Where(e => !e.Path.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))] }
             .WriteAsync(indexPath, job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null, cancellationToken);
         var indexItem = new UploadItem(indexPath, Path.GetFileName(indexPath), new FileInfo(indexPath).Length, SkipIfPresent: false);
 
@@ -259,10 +264,65 @@ public sealed partial class BackupJobRunner(
                 sqlBackups.Add(info);
             }
         }
+        if (job.Source.Kind == SourceKind.Files)
+        {
+            // The next incremental backup builds on this one only if every destination has it.
+            if (plan is not null && failures.Count == 0)
+            {
+                var written = archive.Entries.Select(e => e.Path).ToHashSet(StringComparer.Ordinal);
+                foreach (var skippedEntry in entries.Where(e => !written.Contains(e.EntryName)))
+                {
+                    plan.State.Files.Remove(skippedEntry.EntryName);
+                }
+
+                plan.State.BaseArchive = fileName;
+                runs.SetFileState(job.Id, plan.State.ToBytes());
+            }
+            else
+            {
+                runs.SetFileState(job.Id, null);
+            }
+        }
+
         run.Status = failures.Count == 0 ? RunStatus.Succeeded : succeeded > 0 ? RunStatus.PartiallySucceeded : RunStatus.Failed;
         run.Message = failures.Count == 0
             ? $"Backup stored on {succeeded} destination(s)."
             : $"{failures.Count} of {destinations.Count} destination(s) failed. {string.Join(" | ", failures)}";
+    }
+
+    private IncrementalPlan? PlanIncremental(BackupJob job, BackupRun run, IReadOnlyList<ArchiveEntry> all, string staging, RunLog log, ref IReadOnlyCollection<ArchiveEntry> entries)
+    {
+        if (job.Source.Kind != SourceKind.Files || !job.Source.Files.Incremental)
+        {
+            return null;
+        }
+
+        var previous = IncrementalState.FromBytes(runs.GetFileState(job.Id));
+        var last = runs.GetRecent(job.Id, 20).FirstOrDefault(r => r.Id != run.Id && r.Trigger != RunTrigger.RestoreDrill && r.Status != RunStatus.Running);
+        var plan = IncrementalPlanner.Plan(
+            all,
+            previous,
+            last?.Status == RunStatus.Succeeded ? last.FileName : null,
+            IncrementalPlanner.SettingsFingerprint(job.Id, job.Processing),
+            job.Source.Files.FullBackupEveryDays,
+            run.StartedAt,
+            IncrementalPlanner.Stat);
+
+        if (plan.Full)
+        {
+            log.Info($"Full backup ({plan.Reason}).");
+            return plan;
+        }
+
+        log.Info($"Incremental backup based on '{previous!.BaseArchive}': {plan.Entries.Count} changed and {plan.Deleted.Count} deleted file(s).");
+        var metadata = Path.Combine(staging, ".storix");
+        Directory.CreateDirectory(metadata);
+        var chainPath = Path.Combine(metadata, "chain.json");
+        var deletedPath = Path.Combine(metadata, "deleted.txt");
+        File.WriteAllText(chainPath, System.Text.Json.JsonSerializer.Serialize(new ChainInfo { BasedOn = previous.BaseArchive, DeletedCount = plan.Deleted.Count }, StorixJson.Options));
+        File.WriteAllLines(deletedPath, plan.Deleted);
+        entries = [.. plan.Entries, new ArchiveEntry(chainPath, ChainInfo.EntryName), new ArchiveEntry(deletedPath, ChainInfo.DeletedEntryName)];
+        return plan;
     }
 
     /// <summary>Poll interval while a run is paused or waiting for an unmetered connection.</summary>

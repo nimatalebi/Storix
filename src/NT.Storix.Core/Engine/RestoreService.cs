@@ -43,38 +43,21 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         {
             await using var target = destinationFactory.Create(destination);
             var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var local = Path.Combine(work, backupName);
 
-            if (names.Contains(backupName))
+            // An incremental backup needs every backup back to its full one.
+            var members = new[] { backupName }.AsEnumerable();
+            if (BackupNaming.IsIncremental(backupName) && BackupNaming.PrefixOf(backupName) is { } prefix)
             {
-                status?.Report($"Downloading {backupName} from {destination.Name}...");
-                await target.DownloadAsync(backupName, local, null, cancellationToken);
-            }
-            else if (names.Contains(backupName + ChunkManifest.Extension))
-            {
-                var manifestPath = local + ChunkManifest.Extension;
-                await target.DownloadAsync(backupName + ChunkManifest.Extension, manifestPath, null, cancellationToken);
-                var manifest = ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
-                await ChunkedArchive.JoinAsync(manifest, async (chunk, ct) =>
-                {
-                    status?.Report($"Downloading volume {chunk.Name}...");
-                    var path = Path.Combine(work, chunk.Name);
-                    await target.DownloadAsync(chunk.Name, path, null, ct);
-                    return path;
-                }, local, deleteChunks: true, cancellationToken);
-            }
-            else
-            {
-                throw new FileNotFoundException($"Backup '{backupName}' was not found on '{destination.Name}'.");
+                members = BackupNaming.ChainOf(BackupNaming.ParseBackups(prefix, names), backupName).Select(b => b.Name);
             }
 
-            var sidecar = backupName + Checksum.SidecarExtension;
-            if (names.Contains(sidecar))
+            string? local = null;
+            foreach (var member in members)
             {
-                await target.DownloadAsync(sidecar, local + Checksum.SidecarExtension, null, cancellationToken);
+                local = await DownloadBackupAsync(target, names, member, destination.Name, work, status, cancellationToken);
             }
 
-            return await RestoreFromFileAsync(local, request, status, cancellationToken);
+            return await RestoreFromFileAsync(local!, request, status, cancellationToken);
         }
         finally
         {
@@ -82,8 +65,93 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         }
     }
 
-    /// <summary>Restores a backup file that is already on disk (e.g. copied from a local or UNC folder).</summary>
+    /// <summary>Downloads a backup (joining volumes) and its checksum into <paramref name="work"/>.</summary>
+    private static async Task<string> DownloadBackupAsync(
+        IBackupDestination target, IReadOnlySet<string> names, string backupName, string destinationName, string work, IProgress<string>? status, CancellationToken cancellationToken)
+    {
+        var local = Path.Combine(work, backupName);
+        if (names.Contains(backupName))
+        {
+            status?.Report($"Downloading {backupName} from {destinationName}...");
+            await target.DownloadAsync(backupName, local, null, cancellationToken);
+        }
+        else if (names.Contains(backupName + ChunkManifest.Extension))
+        {
+            var manifestPath = local + ChunkManifest.Extension;
+            await target.DownloadAsync(backupName + ChunkManifest.Extension, manifestPath, null, cancellationToken);
+            var manifest = ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+            await ChunkedArchive.JoinAsync(manifest, async (chunk, ct) =>
+            {
+                status?.Report($"Downloading volume {chunk.Name}...");
+                var path = Path.Combine(work, chunk.Name);
+                await target.DownloadAsync(chunk.Name, path, null, ct);
+                return path;
+            }, local, deleteChunks: true, cancellationToken);
+            File.Delete(manifestPath);
+        }
+        else
+        {
+            throw new FileNotFoundException($"Backup '{backupName}' was not found on '{destinationName}'.");
+        }
+
+        var sidecar = backupName + Checksum.SidecarExtension;
+        if (names.Contains(sidecar))
+        {
+            await target.DownloadAsync(sidecar, local + Checksum.SidecarExtension, null, cancellationToken);
+        }
+
+        return local;
+    }
+
+    /// <summary>
+    /// Restores a backup file that is already on disk (e.g. copied from a local or UNC folder). For an incremental
+    /// backup, the backups it depends on must be in the same folder; they are restored first, oldest first.
+    /// </summary>
     public static async Task<RestoreResult> RestoreFromFileAsync(string archivePath, RestoreRequest request, IProgress<string>? status, CancellationToken cancellationToken)
+    {
+        var folder = Path.GetDirectoryName(Path.GetFullPath(archivePath))!;
+        var logical = LogicalName(Path.GetFileName(archivePath));
+        if (!BackupNaming.IsIncremental(logical) || BackupNaming.PrefixOf(logical) is not { } prefix)
+        {
+            return await RestoreArchiveAsync(archivePath, request, status, cancellationToken);
+        }
+
+        var chain = BackupNaming.ChainOf(BackupNaming.ParseBackups(prefix, Directory.EnumerateFiles(folder).Select(f => Path.GetFileName(f))), logical);
+        var files = new HashSet<string>(StringComparer.Ordinal);
+        long bytes = 0;
+        var verified = true;
+        for (var i = 0; i < chain.Count; i++)
+        {
+            status?.Report($"Restoring {i + 1} of {chain.Count}: {chain[i].Name}...");
+            var path = Path.Combine(folder, chain[i].Name);
+            if (!File.Exists(path))
+            {
+                path += ChunkManifest.Extension;
+            }
+
+            // Later backups in the chain hold newer versions of the same files.
+            var result = await RestoreArchiveAsync(path, i == 0 ? request : request with { Overwrite = true }, status, cancellationToken);
+            files.UnionWith(result.Files);
+            bytes += result.TotalBytes;
+            verified &= result.ChecksumVerified;
+        }
+
+        return new RestoreResult([.. files.Order(StringComparer.Ordinal)], bytes, verified);
+    }
+
+    /// <summary>The backup name of an archive, manifest or volume file name.</summary>
+    private static string LogicalName(string fileName)
+    {
+        if (fileName.EndsWith(ChunkManifest.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            return fileName[..^ChunkManifest.Extension.Length];
+        }
+
+        var index = fileName.LastIndexOf(".part", StringComparison.OrdinalIgnoreCase);
+        return index > 0 && fileName.Length > index + 5 && fileName[(index + 5)..].All(char.IsAsciiDigit) ? fileName[..index] : fileName;
+    }
+
+    private static async Task<RestoreResult> RestoreArchiveAsync(string archivePath, RestoreRequest request, IProgress<string>? status, CancellationToken cancellationToken)
     {
         // Split backups: accept the manifest or any volume and join the set first.
         if (TryResolveVolumeSet(archivePath, out var manifestPath))
@@ -103,7 +171,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
                     File.Copy(volumeSidecar, joined + Checksum.SidecarExtension);
                 }
 
-                return await RestoreFromFileAsync(joined, request, status, cancellationToken);
+                return await RestoreArchiveAsync(joined, request, status, cancellationToken);
             }
             finally
             {
@@ -269,6 +337,11 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         var plan = new List<(ZipArchiveEntry Entry, string Path)>();
         foreach (var entry in zip.Entries)
         {
+            if (entry.FullName.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             if (include is { Count: > 0 } && !IsIncluded(entry.FullName, include))
             {
                 continue;
@@ -309,6 +382,25 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
             File.SetLastWriteTime(destination, entry.LastWriteTime.DateTime);
             files.Add(entry.FullName);
             bytes += entry.Length;
+        }
+
+        // Incremental backups list the files deleted since the backup before them.
+        if (zip.GetEntry(ChainInfo.DeletedEntryName) is { } deletedEntry)
+        {
+            using var reader = new StreamReader(deletedEntry.Open());
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            {
+                if (line.Length == 0 || (include is { Count: > 0 } && !IsIncluded(line, include)))
+                {
+                    continue;
+                }
+
+                var path = Path.GetFullPath(Path.Combine(root, line.Replace('\\', '/')));
+                if (path.StartsWith(rootWithSeparator, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) && File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
         }
 
         return (files, bytes);

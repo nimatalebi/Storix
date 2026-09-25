@@ -131,6 +131,12 @@ public sealed class StorixDatabase
                 job_id        TEXT NOT NULL,
                 requested_at  TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS file_state (
+                job_id      TEXT PRIMARY KEY,
+                data        BLOB NOT NULL,
+                updated_at  TEXT NOT NULL
+            );
             """;
         command.ExecuteNonQuery();
 

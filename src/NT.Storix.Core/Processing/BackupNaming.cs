@@ -5,7 +5,8 @@ using NT.Storix.Core.Destinations;
 namespace NT.Storix.Core.Processing;
 
 /// <summary>
-/// Naming convention: <c>{prefix}_{yyyyMMdd_HHmmss}.zip[.zst][.aes]</c> (timestamp in UTC), plus <c>.sha256</c> sidecars.
+/// Naming convention: <c>{prefix}_{yyyyMMdd_HHmmss}[.inc].zip[.zst][.aes]</c> (timestamp in UTC), plus <c>.sha256</c> sidecars.
+/// <c>.inc</c> marks an incremental backup: it needs the backups before it, back to the previous full one.
 /// Split backups use <c>{name}.partNNNN</c> volumes and a <c>{name}.manifest.json</c> file.
 /// </summary>
 public static partial class BackupNaming
@@ -13,8 +14,10 @@ public static partial class BackupNaming
     public const string PartialSuffix = ".partial";
     private const string TimestampFormat = "yyyyMMdd_HHmmss";
 
-    public static string CreateFileName(string prefix, DateTimeOffset timestampUtc, bool encrypted, bool zstd = false) =>
-        $"{prefix}_{timestampUtc.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}.zip{(zstd ? ArchiveBuilder.ZstdExtension : string.Empty)}{(encrypted ? AesFileEncryptor.FileExtension : string.Empty)}";
+    public const string IncrementalMarker = ".inc";
+
+    public static string CreateFileName(string prefix, DateTimeOffset timestampUtc, bool encrypted, bool zstd = false, bool incremental = false) =>
+        $"{prefix}_{timestampUtc.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture)}{(incremental ? IncrementalMarker : string.Empty)}.zip{(zstd ? ArchiveBuilder.ZstdExtension : string.Empty)}{(encrypted ? AesFileEncryptor.FileExtension : string.Empty)}";
 
     /// <summary>
     /// Groups remote file names into backups that belong to <paramref name="prefix"/>. A backup is either a
@@ -99,6 +102,43 @@ public static partial class BackupNaming
         }
     }
 
+    /// <summary>True for incremental backups (<c>.inc.zip</c>), which depend on earlier backups.</summary>
+    public static bool IsIncremental(string name) => name.Contains(IncrementalMarker + ".zip", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The job prefix of a backup file name, or null when the name does not follow the convention.</summary>
+    public static string? PrefixOf(string name)
+    {
+        var match = ArchiveName().Match(name);
+        return match.Success ? match.Groups["prefix"].Value : null;
+    }
+
+    /// <summary>
+    /// Backups needed to restore <paramref name="target"/>, oldest first: the full backup it is based on and the
+    /// incremental backups up to it. A full backup is its own chain.
+    /// </summary>
+    public static IReadOnlyList<BackupFileInfo> ChainOf(IReadOnlyList<BackupFileInfo> backups, string target)
+    {
+        var ordered = backups.OrderBy(b => b.CreatedAt).ToList();
+        var index = ordered.FindIndex(b => string.Equals(b.Name, target, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            throw new FileNotFoundException($"Backup '{target}' was not found.");
+        }
+
+        var start = index;
+        while (IsIncremental(ordered[start].Name))
+        {
+            if (start == 0)
+            {
+                throw new InvalidDataException($"The full backup that '{target}' is based on is missing.");
+            }
+
+            start--;
+        }
+
+        return ordered.GetRange(start, index - start + 1);
+    }
+
     public static bool TryParseArchive(string prefix, string name, out DateTimeOffset createdAt)
     {
         createdAt = default;
@@ -133,6 +173,9 @@ public static partial class BackupNaming
         createdAt = new DateTimeOffset(parsed, TimeSpan.Zero);
         return true;
     }
+
+    [GeneratedRegex(@"^(?<prefix>.+)_\d{8}_\d{6}(\.inc)?\.zip(\.zst)?(\.aes)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex ArchiveName();
 
     [GeneratedRegex(@"^\.part\d{4,}$", RegexOptions.IgnoreCase)]
     private static partial Regex PartSuffix();

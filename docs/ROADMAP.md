@@ -58,7 +58,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ### Storage efficiency
 - [x] zstd compression
 - [ ] Content-defined chunking and deduplication (incremental-forever)
-- [ ] Incremental file backups using a file index
+- [x] Incremental file backups using a file index
 - [x] Build once and upload to many destinations; copy jobs for the 3-2-1 rule
 
 ### More sources

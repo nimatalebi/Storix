@@ -81,6 +81,15 @@ public sealed class FileSourceOptions
     /// consistent state. Falls back to the live files (with a warning) if the snapshot cannot be created.
     /// </summary>
     public bool UseVss { get; set; }
+
+    /// <summary>
+    /// Only back up files that changed (size or modification time) since the previous backup. Restoring an
+    /// incremental backup uses the backups before it, back to the last full one.
+    /// </summary>
+    public bool Incremental { get; set; }
+
+    /// <summary>With <see cref="Incremental"/>: make a new full backup after this many days (0 = never).</summary>
+    public int FullBackupEveryDays { get; set; } = 7;
 }
 
 public sealed class SqlServerSourceOptions

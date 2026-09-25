@@ -106,7 +106,7 @@ public sealed class BackupIndex
         return new BackupIndex
         {
             Archive = archiveName,
-            Entries = zip.Entries.Where(e => !e.FullName.EndsWith('/'))
+            Entries = zip.Entries.Where(e => !e.FullName.EndsWith('/') && !e.FullName.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))
                 .Select(e => new IndexEntry { Path = e.FullName, Size = e.Length, Modified = e.LastWriteTime })
                 .ToList(),
         };

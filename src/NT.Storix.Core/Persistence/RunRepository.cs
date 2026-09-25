@@ -156,6 +156,30 @@ public sealed class RunRepository(StorixDatabase database)
         return ids;
     }
 
+    /// <summary>File list of the last backup of an incremental job (gzip JSON), or null.</summary>
+    public byte[]? GetFileState(Guid jobId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT data FROM file_state WHERE job_id = $job";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        return command.ExecuteScalar() as byte[];
+    }
+
+    /// <summary>Saves (or with null, forgets) the file list of an incremental job.</summary>
+    public void SetFileState(Guid jobId, byte[]? data)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = data is null
+            ? "DELETE FROM file_state WHERE job_id = $job"
+            : "INSERT INTO file_state (job_id, data, updated_at) VALUES ($job, $data, $now) ON CONFLICT(job_id) DO UPDATE SET data = $data, updated_at = $now";
+        command.Parameters.AddWithValue("$job", jobId.ToString());
+        command.Parameters.AddWithValue("$data", (object?)data ?? DBNull.Value);
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
     /// <summary>Pauses (or resumes) the running backup of a job at its next checkpoint.</summary>
     public void SetPaused(Guid jobId, bool paused)
     {

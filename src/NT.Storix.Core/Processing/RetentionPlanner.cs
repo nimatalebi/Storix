@@ -9,7 +9,8 @@ public static class RetentionPlanner
 {
     /// <summary>
     /// Returns the backups to delete. The newest backup is never deleted. A backup is deleted when "keep last"
-    /// or "keep days" says so, unless a GFS rule (daily/weekly/monthly/yearly) protects it.
+    /// or "keep days" says so, unless a GFS rule (daily/weekly/monthly/yearly) protects it or a kept incremental
+    /// backup depends on it.
     /// </summary>
     /// <param name="zone">Time zone used to group backups into days, weeks, months and years (default: local).</param>
     public static IReadOnlyList<BackupFileInfo> SelectForDeletion(IEnumerable<BackupFileInfo> backups, RetentionPolicy policy, DateTimeOffset now, TimeZoneInfo? zone = null)
@@ -29,6 +30,26 @@ public static class RetentionPlanner
             if ((tooMany || tooOld || gfsOnly) && !protectedByGfs.Contains(ordered[i]))
             {
                 result.Add(ordered[i]);
+            }
+        }
+
+        // Incremental backups need every backup back to their full one: never break a chain that is kept.
+        var keep = ordered.Except(result).ToList();
+        foreach (var kept in keep.Where(b => BackupNaming.IsIncremental(b.Name)))
+        {
+            IReadOnlyList<BackupFileInfo> chain;
+            try
+            {
+                chain = BackupNaming.ChainOf(ordered, kept.Name);
+            }
+            catch (InvalidDataException)
+            {
+                continue; // Its full backup is already gone: nothing to protect.
+            }
+
+            foreach (var needed in chain)
+            {
+                result.Remove(needed);
             }
         }
 

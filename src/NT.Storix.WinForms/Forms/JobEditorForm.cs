@@ -38,6 +38,8 @@ internal sealed class JobEditorForm : Form
     private readonly CheckBox _fileRecursive = new() { Text = "Include subfolders", AutoSize = true };
     private readonly CheckBox _fileSkipLocked = new() { Text = "Skip locked files instead of failing", AutoSize = true };
     private readonly CheckBox _fileVss = new() { Text = "Use Volume Shadow Copy (back up open and locked files consistently)", AutoSize = true };
+    private readonly CheckBox _fileIncremental = new() { Text = "Incremental: only back up files changed since the previous backup", AutoSize = true };
+    private readonly NumericUpDown _fileFullEvery = Ui.Number(0, 365, 7);
     private readonly TextBox _sqlConnection = new();
     private readonly TextBox _sqlDatabases = Ui.Multiline(90);
     private readonly TextBox _sqlBackupDirectory = new();
@@ -270,6 +272,8 @@ internal sealed class JobEditorForm : Form
         grid.Row(null, _fileRecursive);
         grid.Row(null, _fileSkipLocked);
         grid.Row(null, _fileVss);
+        grid.Row(null, _fileIncremental);
+        grid.Row("New full backup every (days, 0 = never)", _fileFullEvery);
         grid.Fill();
         return grid;
     }
@@ -507,6 +511,8 @@ internal sealed class JobEditorForm : Form
         _fileRecursive.Checked = files.IncludeSubdirectories;
         _fileSkipLocked.Checked = files.SkipLockedFiles;
         _fileVss.Checked = files.UseVss;
+        _fileIncremental.Checked = files.Incremental;
+        _fileFullEvery.Value = Math.Clamp(files.FullBackupEveryDays, 0, 365);
 
         var sql = Job.Source.SqlServer;
         _sqlConnection.Text = sql.ConnectionString;
@@ -581,6 +587,8 @@ internal sealed class JobEditorForm : Form
         Job.Source.Files.IncludeSubdirectories = _fileRecursive.Checked;
         Job.Source.Files.SkipLockedFiles = _fileSkipLocked.Checked;
         Job.Source.Files.UseVss = _fileVss.Checked;
+        Job.Source.Files.Incremental = _fileIncremental.Checked;
+        Job.Source.Files.FullBackupEveryDays = (int)_fileFullEvery.Value;
 
         Job.Source.SqlServer.ConnectionString = NullIfEmpty(_sqlConnection.Text);
         Job.Source.SqlServer.Databases = _sqlDatabases.Lines();
