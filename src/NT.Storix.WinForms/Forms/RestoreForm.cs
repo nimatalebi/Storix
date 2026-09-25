@@ -254,7 +254,7 @@ internal sealed class RestoreForm : Form
 
     private void BrowseFile(object? sender, EventArgs e)
     {
-        using var dialog = new OpenFileDialog { Filter = "Storix backups (*.zip;*.aes)|*.zip;*.aes|All files (*.*)|*.*" };
+        using var dialog = new OpenFileDialog { Filter = "Storix backups (*.zip;*.aes;*.manifest.json)|*.zip;*.aes;*.manifest.json|All files (*.*)|*.*" };
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
             _file.Text = dialog.FileName;

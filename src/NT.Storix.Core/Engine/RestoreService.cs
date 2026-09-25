@@ -37,14 +37,30 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         {
             await using var target = destinationFactory.Create(destination);
             var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (!names.Contains(backupName))
+            var local = Path.Combine(work, backupName);
+
+            if (names.Contains(backupName))
+            {
+                status?.Report($"Downloading {backupName} from {destination.Name}...");
+                await target.DownloadAsync(backupName, local, null, cancellationToken);
+            }
+            else if (names.Contains(backupName + ChunkManifest.Extension))
+            {
+                var manifestPath = local + ChunkManifest.Extension;
+                await target.DownloadAsync(backupName + ChunkManifest.Extension, manifestPath, null, cancellationToken);
+                var manifest = ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+                await ChunkedArchive.JoinAsync(manifest, async (chunk, ct) =>
+                {
+                    status?.Report($"Downloading volume {chunk.Name}...");
+                    var path = Path.Combine(work, chunk.Name);
+                    await target.DownloadAsync(chunk.Name, path, null, ct);
+                    return path;
+                }, local, deleteChunks: true, cancellationToken);
+            }
+            else
             {
                 throw new FileNotFoundException($"Backup '{backupName}' was not found on '{destination.Name}'.");
             }
-
-            var local = Path.Combine(work, backupName);
-            status?.Report($"Downloading {backupName} from {destination.Name}...");
-            await target.DownloadAsync(backupName, local, null, cancellationToken);
 
             var sidecar = backupName + Checksum.SidecarExtension;
             if (names.Contains(sidecar))
@@ -63,6 +79,32 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
     /// <summary>Restores a backup file that is already on disk (e.g. copied from a local or UNC folder).</summary>
     public static async Task<RestoreResult> RestoreFromFileAsync(string archivePath, RestoreRequest request, IProgress<string>? status, CancellationToken cancellationToken)
     {
+        // Split backups: accept the manifest or any volume and join the set first.
+        if (TryResolveVolumeSet(archivePath, out var manifestPath))
+        {
+            var joinFolder = CreateWorkDirectory();
+            try
+            {
+                var manifest = ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+                var folder = Path.GetDirectoryName(Path.GetFullPath(manifestPath))!;
+                var joined = Path.Combine(joinFolder, manifest.File);
+                status?.Report($"Joining {manifest.Chunks.Count} volume(s)...");
+                await ChunkedArchive.JoinAsync(manifest, (chunk, _) => Task.FromResult(Path.Combine(folder, chunk.Name)), joined, deleteChunks: false, cancellationToken);
+
+                var volumeSidecar = Path.Combine(folder, manifest.File + Checksum.SidecarExtension);
+                if (File.Exists(volumeSidecar))
+                {
+                    File.Copy(volumeSidecar, joined + Checksum.SidecarExtension);
+                }
+
+                return await RestoreFromFileAsync(joined, request, status, cancellationToken);
+            }
+            finally
+            {
+                TryDelete(joinFolder);
+            }
+        }
+
         if (!File.Exists(archivePath))
         {
             throw new FileNotFoundException("Backup file not found.", archivePath);
@@ -108,6 +150,25 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         {
             TryDelete(work);
         }
+    }
+
+    private static bool TryResolveVolumeSet(string path, out string manifestPath)
+    {
+        manifestPath = path;
+        if (path.EndsWith(ChunkManifest.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            return File.Exists(path);
+        }
+
+        var name = Path.GetFileName(path);
+        var index = name.LastIndexOf(".part", StringComparison.OrdinalIgnoreCase);
+        if (index > 0 && name[(index + 5)..].All(char.IsAsciiDigit) && name.Length > index + 5)
+        {
+            manifestPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, name[..index] + ChunkManifest.Extension);
+            return File.Exists(manifestPath);
+        }
+
+        return false;
     }
 
     internal static async Task<(IReadOnlyList<string> Files, long Bytes)> ExtractAsync(string zipPath, string targetDirectory, bool overwrite, CancellationToken cancellationToken)

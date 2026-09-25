@@ -57,6 +57,7 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _passwordConfirm = new() { UseSystemPasswordChar = true };
     private readonly CheckBox _verify = new() { Text = "Verify archive before uploading", AutoSize = true };
     private readonly TextBox _keyFile = new();
+    private readonly NumericUpDown _splitSize = Ui.Number(0, 1_000_000);
     private readonly CheckBox _recoveryConfirmed = new() { Text = "I have stored the password / key file in a safe place (e.g. printed recovery sheet)", AutoSize = true };
 
     // Destinations
@@ -323,6 +324,8 @@ internal sealed class JobEditorForm : Form
             Ui.Button("Recovery sheet...", (_, _) => PrintRecoverySheet(), 140)));
         grid.Row(null, _recoveryConfirmed);
         grid.Row(null, _verify);
+        grid.Row("Split into volumes of (MB, 0 = off)", _splitSize);
+        grid.Row(null, new Label { Text = "Volumes are uploaded one by one; an interrupted upload continues with the next missing volume.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
         _encrypt.CheckedChanged += (_, _) => _password.Enabled = _passwordConfirm.Enabled = _keyFile.Enabled = _encrypt.Checked;
         return grid;
@@ -456,6 +459,7 @@ internal sealed class JobEditorForm : Form
         _keyFile.Text = p.EncryptionKeyFile;
         _keyFile.Enabled = p.Encrypt;
         _recoveryConfirmed.Checked = p.RecoveryInfoConfirmed;
+        _splitSize.Value = Math.Clamp(p.SplitSizeMb, 0, 1_000_000);
 
         _keepLast.Value = Math.Clamp(Job.Retention.KeepLast, 0, 10_000);
         _keepDays.Value = Math.Clamp(Job.Retention.KeepDays, 0, 36_500);
@@ -515,6 +519,7 @@ internal sealed class JobEditorForm : Form
         Job.Processing.VerifyArchive = _verify.Checked;
         Job.Processing.EncryptionKeyFile = _encrypt.Checked ? NullIfEmpty(_keyFile.Text) : null;
         Job.Processing.RecoveryInfoConfirmed = _recoveryConfirmed.Checked;
+        Job.Processing.SplitSizeMb = (int)_splitSize.Value;
 
         Job.Retention.KeepLast = (int)_keepLast.Value;
         Job.Retention.KeepDays = (int)_keepDays.Value;

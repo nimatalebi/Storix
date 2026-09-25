@@ -103,6 +103,26 @@ public sealed class BackupJobRunner(
             run.Sha256 = hash;
             log.Info($"SHA-256: {hash}");
 
+            // Files to upload, in order. Split backups upload their manifest last (it marks a complete set).
+            var uploads = new List<UploadItem>();
+            if (job.Processing.SplitSizeMb > 0 && run.SizeBytes > job.Processing.SplitSizeMb * 1024L * 1024L)
+            {
+                var manifest = await ChunkedArchive.SplitAsync(finalPath, job.Processing.SplitSizeMb * 1024L * 1024L, hash, cancellationToken);
+                File.Delete(finalPath);
+                var manifestPath = finalPath + ChunkManifest.Extension;
+                await File.WriteAllTextAsync(manifestPath, manifest.ToJson(), cancellationToken);
+                log.Info($"Split into {manifest.Chunks.Count} volume(s) of up to {job.Processing.SplitSizeMb} MB.");
+
+                uploads.AddRange(manifest.Chunks.Select(c => new UploadItem(Path.Combine(staging, c.Name), c.Name, c.Size, SkipIfPresent: true)));
+                uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+                uploads.Add(new UploadItem(manifestPath, Path.GetFileName(manifestPath), new FileInfo(manifestPath).Length, SkipIfPresent: false));
+            }
+            else
+            {
+                uploads.Add(new UploadItem(finalPath, fileName, run.SizeBytes.Value, SkipIfPresent: false));
+                uploads.Add(new UploadItem(sidecar, Path.GetFileName(sidecar), null, SkipIfPresent: false));
+            }
+
             // Wait for the allowed upload window (e.g. only at night).
             if (UploadWindow.Parse(job.Schedule.UploadWindow) is { } window)
             {
@@ -122,7 +142,7 @@ public sealed class BackupJobRunner(
             {
                 try
                 {
-                    await UploadAsync(job, destination, finalPath, sidecar, log, cancellationToken);
+                    await UploadAsync(job, destination, uploads, log, cancellationToken);
                     await ApplyRetentionAsync(job, destination, fileName, log, cancellationToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -307,10 +327,13 @@ public sealed class BackupJobRunner(
         }
     }
 
-    private async Task UploadAsync(BackupJob job, DestinationDefinition definition, string archivePath, string sidecarPath, RunLog log, CancellationToken cancellationToken)
+    /// <param name="ExpectedSize">Size verified on the destination after the upload (null = not verified).</param>
+    /// <param name="SkipIfPresent">Skip when the destination already has the file with the expected size (chunk-level resume).</param>
+    private sealed record UploadItem(string LocalPath, string RemoteName, long? ExpectedSize, bool SkipIfPresent);
+
+    private async Task UploadAsync(BackupJob job, DestinationDefinition definition, IReadOnlyList<UploadItem> items, RunLog log, CancellationToken cancellationToken)
     {
-        var fileName = Path.GetFileName(archivePath);
-        var size = new FileInfo(archivePath).Length;
+        var total = items.Sum(i => i.ExpectedSize ?? 0);
         log.Info($"Uploading to '{definition.Name}' ({definition.Kind}).");
 
         await RetryExecutor.ExecuteAsync(job.Retry, $"Upload to '{definition.Name}'", async (_, ct) =>
@@ -319,18 +342,34 @@ public sealed class BackupJobRunner(
             await using var destination = destinationFactory.Create(definition);
             var watch = Stopwatch.StartNew();
 
-            await destination.UploadAsync(archivePath, fileName, progress: null, ct);
-            await destination.UploadAsync(sidecarPath, Path.GetFileName(sidecarPath), progress: null, ct);
-
-            // Verification: the remote file must exist with the exact size.
-            var remote = (await destination.ListAsync(ct)).FirstOrDefault(f => string.Equals(f.Name, fileName, StringComparison.OrdinalIgnoreCase));
-            if (remote is null || remote.Size != size)
+            var remote = items.Any(i => i.SkipIfPresent)
+                ? (await destination.ListAsync(ct)).ToDictionary(f => f.Name, f => f.Size, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            var skipped = 0;
+            foreach (var item in items)
             {
-                throw new IOException($"Upload verification failed: remote size {remote?.Size.ToString() ?? "missing"}, expected {size}.");
+                if (item.SkipIfPresent && remote.TryGetValue(item.RemoteName, out var existing) && existing == item.ExpectedSize)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                await destination.UploadAsync(item.LocalPath, item.RemoteName, progress: null, ct);
+            }
+
+            // Verification: every file must exist remotely with the exact size.
+            var listing = (await destination.ListAsync(ct)).ToDictionary(f => f.Name, f => f.Size, StringComparer.OrdinalIgnoreCase);
+            foreach (var item in items.Where(i => i.ExpectedSize is not null))
+            {
+                if (!listing.TryGetValue(item.RemoteName, out var size) || size != item.ExpectedSize)
+                {
+                    throw new IOException($"Upload verification failed for '{item.RemoteName}': remote size {(listing.ContainsKey(item.RemoteName) ? size.ToString() : "missing")}, expected {item.ExpectedSize}.");
+                }
             }
 
             var seconds = Math.Max(watch.Elapsed.TotalSeconds, 0.001);
-            log.Info($"Uploaded to '{definition.Name}' and verified ({FormatSize(size)} at {FormatSize((long)(size / seconds))}/s).");
+            log.Info($"Uploaded to '{definition.Name}' and verified ({FormatSize(total)} at {FormatSize((long)(total / seconds))}/s" +
+                     (skipped > 0 ? $", {skipped} volume(s) already present" : string.Empty) + ").");
         }, log, cancellationToken);
     }
 
@@ -348,6 +387,13 @@ public sealed class BackupJobRunner(
             {
                 await destination.DeleteAsync(partial.Name, cancellationToken);
                 log.Info($"Removed stale partial upload '{partial.Name}' from '{definition.Name}'.");
+            }
+
+            // Volumes of interrupted split uploads (no manifest) from earlier runs.
+            foreach (var orphan in BackupNaming.OrphanedFiles(job.FilePrefix, files.Select(f => f.Name), keep: currentFile).ToList())
+            {
+                await destination.DeleteAsync(orphan, cancellationToken);
+                log.Info($"Removed incomplete volume '{orphan}' from '{definition.Name}'.");
             }
 
             var backups = BackupNaming.ParseBackups(job.FilePrefix, files.Select(f => f.Name));

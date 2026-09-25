@@ -31,7 +31,7 @@ Backup Agent
 ├── Processing
 │   ├── Compression
 │   ├── Encryption
-│   ├── Chunking            (planned)
+│   ├── Chunking (volumes)
 │   └── Retention
 │
 ├── Destinations
@@ -56,6 +56,7 @@ Backup Agent
 | **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations. Encryption streams data, so large files are fine. |
 | **Retention** | "Keep last N" and/or "delete older than N days", plus long-term GFS rules (keep daily/weekly/monthly/yearly), applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
+| **Chunking** | Optionally split backups into volumes (`.part0001`, `.part0002`…) with a manifest. Each volume is uploaded and checked separately; after an interruption, only the missing volumes are uploaded again. |
 | **Large files** | Everything is streamed. ZIP64 is supported. No step loads a whole file into memory. |
 | **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. A scheduled run that was missed while the machine or service was off runs once at startup (can be turned off per job). The service restarts automatically if it fails. |
 | **Partial upload cleanup** | Leftover `.partial` files from interrupted runs are deleted from destinations. |
@@ -214,6 +215,8 @@ Each run produces:
 <job-name>_<yyyyMMdd_HHmmss>.zip          (or .zip.aes when encrypted)
 <job-name>_<yyyyMMdd_HHmmss>.zip.sha256
 ```
+
+When splitting is enabled, the archive is stored as `<name>.partNNNN` volumes plus `<name>.manifest.json`. The manifest lists every volume with its SHA-256 and is uploaded last. To restore from a folder, point the restore wizard at the manifest or any volume.
 
 Inside the ZIP: `files and folders`, `sqlserver/<db>.bak` or `mongodb/mongodb_<db>.archive`.
 

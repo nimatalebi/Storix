@@ -28,7 +28,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ## P1: missing essentials
 
 - [x] Amazon S3 and S3-compatible destinations (MinIO, Wasabi, R2, B2) with provider presets
-- [ ] Chunked archives (split volumes) with chunk-level resume
+- [x] Chunked archives (split volumes) with chunk-level resume
 - [x] Restore from a destination or a local folder (restore wizard in the manager)
 - [ ] Google Drive OAuth sign-in for personal "My Drive"
 - [x] Webhook notifications (JSON, HMAC-signed)

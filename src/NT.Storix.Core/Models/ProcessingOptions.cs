@@ -28,4 +28,10 @@ public sealed class ProcessingOptions
 
     /// <summary>Re-reads the archive (and decrypts it) before uploading to make sure it is valid.</summary>
     public bool VerifyArchive { get; set; } = true;
+
+    /// <summary>
+    /// Split the backup into volumes of this size (MB) before uploading. 0 disables splitting.
+    /// Useful for providers with file-size limits and to resume large uploads chunk by chunk.
+    /// </summary>
+    public int SplitSizeMb { get; set; }
 }
