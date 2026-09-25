@@ -81,6 +81,26 @@ public sealed class StorixDatabase
             CREATE INDEX IF NOT EXISTS ix_runs_job_started ON runs (job_id, started_at DESC);
             CREATE INDEX IF NOT EXISTS ix_runs_started ON runs (started_at DESC);
 
+            CREATE TABLE IF NOT EXISTS sql_backups (
+                id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id                 TEXT NOT NULL,
+                job_id                 TEXT NOT NULL,
+                server                 TEXT NOT NULL,
+                database_name          TEXT NOT NULL,
+                type                   TEXT NOT NULL,
+                first_lsn              TEXT NOT NULL,
+                last_lsn               TEXT NOT NULL,
+                checkpoint_lsn         TEXT NOT NULL,
+                database_backup_lsn    TEXT NOT NULL,
+                differential_base_lsn  TEXT NULL,
+                is_copy_only           INTEGER NOT NULL,
+                backup_start           TEXT NOT NULL,
+                backup_finish          TEXT NOT NULL,
+                entry_name             TEXT NOT NULL,
+                archive_name           TEXT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_sql_backups_db ON sql_backups (server, database_name, backup_finish);
+
             CREATE TABLE IF NOT EXISTS drill_requests (
                 job_id        TEXT PRIMARY KEY,
                 requested_at  TEXT NOT NULL

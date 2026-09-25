@@ -3,6 +3,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using NT.Storix.Core.Engine;
 using NT.Storix.Core.Models;
+using NT.Storix.Core.Persistence;
 using NT.Storix.Core.Sources;
 using Testcontainers.MongoDb;
 using Testcontainers.MsSql;
@@ -165,5 +166,89 @@ public class SqlRestoreDrillTests
         await using var count = check.CreateCommand();
         count.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name LIKE 'storix_drill_%'";
         Assert.Equal(0, (int)(await count.ExecuteScalarAsync())!);
+    }
+}
+
+public class SqlPointInTimeTests
+{
+    [DockerFact]
+    public async Task Full_differential_and_log_backups_restore_to_a_point_in_time()
+    {
+        using var harness = new Harness();
+        var shared = harness.Dir("shared");
+        await using var container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithBindMount(shared, shared)
+            .WithCreateParameterModifier(p => p.User = "root")
+            .Build();
+        await container.StartAsync();
+        var connectionString = container.GetConnectionString();
+        var db = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "Pitr" }.ConnectionString;
+
+        await Sql(connectionString, "CREATE DATABASE Pitr; ALTER DATABASE Pitr SET RECOVERY FULL;");
+        await Sql(db, "CREATE TABLE Events (Id int PRIMARY KEY, Name nvarchar(50)); INSERT INTO Events VALUES (1, 'before full');");
+
+        var sqlBackups = new SqlBackupRepository(new StorixDatabase(Path.Combine(harness.Root, "storix.db")));
+        var runner = new BackupJobRunner(harness.Runs, harness.Settings, new SourceFactory(), new NT.Storix.Core.Destinations.DestinationFactory(),
+            [], Microsoft.Extensions.Logging.Abstractions.NullLogger<BackupJobRunner>.Instance, null, sqlBackups);
+        var target = harness.Dir("target");
+
+        BackupJob Job(string name, SqlBackupType type) => new()
+        {
+            Name = name,
+            Source = { Kind = SourceKind.SqlServer, SqlServer = { ConnectionString = connectionString, Databases = ["Pitr"], BackupDirectory = shared, BackupType = type, CopyOnly = false } },
+            Destinations = [new NT.Storix.Core.Models.DestinationDefinition { Name = "Local", LocalFolder = { Path = target } }],
+        };
+
+        async Task<BackupRun> Run(BackupJob job)
+        {
+            var run = await runner.RunAsync(job, RunTrigger.Manual, CancellationToken.None);
+            Assert.True(run.Status == RunStatus.Succeeded, run.Log);
+            return run;
+        }
+
+        var fullJob = Job("pitr-full", SqlBackupType.Full);
+        var diffJob = Job("pitr-diff", SqlBackupType.Differential);
+        var logJob = Job("pitr-log", SqlBackupType.Log);
+
+        await Run(fullJob);
+        await Sql(db, "INSERT INTO Events VALUES (2, 'after full');");
+        await Run(diffJob);
+        await Sql(db, "INSERT INTO Events VALUES (3, 'after diff');");
+        await Task.Delay(1500);
+        var pointInTime = DateTimeOffset.UtcNow;
+        await Task.Delay(1500);
+        await Sql(db, "INSERT INTO Events VALUES (4, 'too late');");
+        await Run(logJob);
+
+        var server = sqlBackups.ListDatabases().Single();
+        var chain = SqlRestoreChain.Plan(sqlBackups.GetBackups(server.Server, server.Database), pointInTime);
+        Assert.Equal([SqlBackupType.Full, SqlBackupType.Differential, SqlBackupType.Log], chain.Select(c => c.Type));
+
+        // Extract every archive of the chain into the shared folder and restore.
+        var files = new List<(string, SqlBackupType)>();
+        foreach (var info in chain)
+        {
+            var folder = Path.Combine(shared, "restore-" + info.Type);
+            await RestoreService.RestoreFromFileAsync(Path.Combine(target, info.ArchiveName!), new RestoreRequest(folder), null, CancellationToken.None);
+            files.Add((Path.Combine(folder, info.EntryName.Replace('/', Path.DirectorySeparatorChar)), info.Type));
+        }
+
+        await SqlServerRestorer.RestoreChainAsync(connectionString, files, "PitrRestored", null, replace: false, pointInTime, CancellationToken.None);
+
+        var restoredDb = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "PitrRestored" }.ConnectionString;
+        await using var connection = new SqlConnection(restoredDb);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT STRING_AGG(CAST(Id AS nvarchar(10)), ',') WITHIN GROUP (ORDER BY Id) FROM Events";
+        Assert.Equal("1,2,3", (string)(await command.ExecuteScalarAsync())!);
+    }
+
+    private static async Task Sql(string connectionString, string sql)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
     }
 }

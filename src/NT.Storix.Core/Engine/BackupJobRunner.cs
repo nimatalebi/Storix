@@ -22,7 +22,8 @@ public sealed class BackupJobRunner(
     IDestinationFactory destinationFactory,
     IEnumerable<INotifier> notifiers,
     ILogger<BackupJobRunner> logger,
-    HttpClient? http = null)
+    HttpClient? http = null,
+    SqlBackupRepository? sqlBackups = null)
 {
     private readonly HttpClient _http = http ?? SharedHttp.Client;
 
@@ -153,6 +154,16 @@ public sealed class BackupJobRunner(
             }
 
             var succeeded = destinations.Count - failures.Count;
+            if (succeeded > 0 && sqlBackups is not null)
+            {
+                foreach (var info in snapshot.SqlBackups)
+                {
+                    info.JobId = job.Id;
+                    info.RunId = run.Id;
+                    info.ArchiveName = fileName;
+                    sqlBackups.Add(info);
+                }
+            }
             run.Status = failures.Count == 0 ? RunStatus.Succeeded : succeeded > 0 ? RunStatus.PartiallySucceeded : RunStatus.Failed;
             run.Message = failures.Count == 0
                 ? $"Backup stored on {succeeded} destination(s)."
@@ -409,6 +420,8 @@ public sealed class BackupJobRunner(
                 {
                     await destination.DeleteAsync(file, cancellationToken);
                 }
+
+                sqlBackups?.DeleteByArchive(job.Id, [backup.Name]);
 
                 log.Info($"Retention: deleted '{backup.Name}' from '{definition.Name}'.");
             }

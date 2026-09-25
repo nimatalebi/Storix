@@ -60,7 +60,8 @@ Backup Agent
 | **Large files** | Everything is streamed. ZIP64 is supported. No step loads a whole file into memory. |
 | **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. A scheduled run that was missed while the machine or service was off runs once at startup (can be turned off per job). The service restarts automatically if it fails. |
 | **Partial upload cleanup** | Leftover `.partial` files from interrupted runs are deleted from destinations. |
-| **Database consistency** | SQL Server: `BACKUP DATABASE … WITH COPY_ONLY, CHECKSUM`, so your existing backup chain is left intact. MongoDB: optional `--oplog` for a point-in-time dump of a replica set. |
+| **Database consistency** | SQL Server: `BACKUP DATABASE … WITH CHECKSUM` (COPY_ONLY by default, so your existing backup chain is left intact). MongoDB: optional `--oplog` for a point-in-time dump of a replica set. |
+| **SQL Server chains** | Full, differential and transaction-log backups. LSNs are recorded for every backup, and **Tools → SQL Server point-in-time restore** rebuilds the chain and restores to the latest state or to any moment (`STOPAT`). |
 | **Backup verification** | Optional `RESTORE VERIFYONLY`. Every archive can be re-read (and decrypted) before upload. The size of each uploaded file is checked. |
 | **Notifications & monitoring** | E-mail, webhooks (JSON, HMAC-signed), Telegram, Bale, Slack, Teams and Discord. A dead man's switch alerts when a job has no successful backup for N hours. healthchecks.io and Uptime Kuma pings are supported. |
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |

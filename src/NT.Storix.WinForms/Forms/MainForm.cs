@@ -89,6 +89,11 @@ internal sealed class MainForm : Form
 
         var tools = new ToolStripMenuItem("&Tools");
         tools.DropDownItems.Add("&Restore backup...", null, (_, _) => OpenRestore());
+        tools.DropDownItems.Add("SQL Server &point-in-time restore...", null, (_, _) =>
+        {
+            using var form = new PointInTimeRestoreForm(_services.SqlBackups, _services.Jobs, _services.Destinations);
+            form.ShowDialog(this);
+        });
         tools.DropDownItems.Add("&Decrypt backup file...", null, (_, _) =>
         {
             using var form = new DecryptForm();

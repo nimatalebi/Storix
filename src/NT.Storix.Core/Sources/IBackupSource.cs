@@ -7,7 +7,11 @@ namespace NT.Storix.Core.Sources;
 public sealed record SourceContext(string StagingDirectory, RunLog Log);
 
 /// <summary>Everything that must go into the archive for one run.</summary>
-public sealed record SourceSnapshot(IReadOnlyList<ArchiveEntry> Entries);
+public sealed record SourceSnapshot(IReadOnlyList<ArchiveEntry> Entries)
+{
+    /// <summary>SQL Server backup metadata (LSNs) recorded for restore chains.</summary>
+    public IReadOnlyList<SqlBackupInfo> SqlBackups { get; init; } = [];
+}
 
 public interface IBackupSource
 {

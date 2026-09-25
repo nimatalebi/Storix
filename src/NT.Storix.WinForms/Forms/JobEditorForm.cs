@@ -38,6 +38,8 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _sqlConnection = new();
     private readonly TextBox _sqlDatabases = Ui.Multiline(90);
     private readonly TextBox _sqlBackupDirectory = new();
+    private readonly ComboBox _sqlBackupType = Ui.EnumCombo(NT.Storix.Core.Sources.SqlBackupType.Full);
+    private readonly CheckBox _sqlCopyOnly = new() { Text = "COPY_ONLY full backup (leaves the server's own backup chain untouched)", AutoSize = true };
     private readonly CheckBox _sqlVerify = new() { Text = "Verify backup (RESTORE VERIFYONLY WITH CHECKSUM)", AutoSize = true };
     private readonly CheckBox _sqlCompression = new() { Text = "Use SQL Server native compression (not on Express)", AutoSize = true };
     private readonly NumericUpDown _sqlTimeout = Ui.Number(0, 86_400);
@@ -261,6 +263,15 @@ internal sealed class JobEditorForm : Form
         grid.Row("Connection string", _sqlConnection);
         grid.Row("Databases\n(one per line)", _sqlDatabases);
         grid.Row(null, Ui.Buttons(Ui.Button("Load databases", OnLoadDatabases, 130)));
+        grid.Row("Backup type", _sqlBackupType);
+        grid.Row(null, _sqlCopyOnly);
+        grid.Row(null, new Label
+        {
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            MaximumSize = new Size(560, 0),
+            Text = "For point-in-time restore create three jobs: Full (COPY_ONLY off, e.g. weekly), Differential (daily) and Log (e.g. hourly, FULL recovery model).",
+        });
         grid.Row("Backup directory", _sqlBackupDirectory);
         grid.Row(null, new Label
         {
@@ -466,6 +477,8 @@ internal sealed class JobEditorForm : Form
         _sqlConnection.Text = sql.ConnectionString;
         _sqlDatabases.Lines = sql.Databases.ToArray();
         _sqlBackupDirectory.Text = sql.BackupDirectory;
+        _sqlBackupType.SelectedItem = sql.BackupType;
+        _sqlCopyOnly.Checked = sql.CopyOnly;
         _sqlVerify.Checked = sql.VerifyBackup;
         _sqlCompression.Checked = sql.NativeCompression;
         _sqlTimeout.Value = Math.Clamp(sql.CommandTimeoutSeconds, 0, 86_400);
@@ -533,6 +546,8 @@ internal sealed class JobEditorForm : Form
         Job.Source.SqlServer.ConnectionString = NullIfEmpty(_sqlConnection.Text);
         Job.Source.SqlServer.Databases = _sqlDatabases.Lines();
         Job.Source.SqlServer.BackupDirectory = NullIfEmpty(_sqlBackupDirectory.Text);
+        Job.Source.SqlServer.BackupType = (NT.Storix.Core.Sources.SqlBackupType)_sqlBackupType.SelectedItem!;
+        Job.Source.SqlServer.CopyOnly = _sqlCopyOnly.Checked;
         Job.Source.SqlServer.VerifyBackup = _sqlVerify.Checked;
         Job.Source.SqlServer.NativeCompression = _sqlCompression.Checked;
         Job.Source.SqlServer.CommandTimeoutSeconds = (int)_sqlTimeout.Value;

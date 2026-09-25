@@ -40,6 +40,18 @@ public sealed class SqlServerSourceOptions
     public List<string> Databases { get; set; } = [];
 
     /// <summary>
+    /// Full, differential or transaction-log backup. Differential and log backups need a full backup made by
+    /// Storix with <see cref="CopyOnly"/> disabled (and the FULL recovery model for log backups).
+    /// </summary>
+    public Sources.SqlBackupType BackupType { get; set; } = Sources.SqlBackupType.Full;
+
+    /// <summary>
+    /// Full backups only: COPY_ONLY leaves the server's own backup chain untouched. Disable it when Storix
+    /// manages differential/log backups of the database.
+    /// </summary>
+    public bool CopyOnly { get; set; } = true;
+
+    /// <summary>
     /// Folder the SQL Server engine writes the <c>.bak</c> file to. It must be writable by the SQL Server
     /// service account and readable by Storix. Empty means the instance default backup directory.
     /// </summary>

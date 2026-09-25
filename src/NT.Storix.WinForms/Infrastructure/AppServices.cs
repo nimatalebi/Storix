@@ -14,6 +14,7 @@ internal sealed class AppServices
         Jobs = new JobRepository(database, protector);
         Runs = new RunRepository(database);
         Settings = new SettingsRepository(database, protector);
+        SqlBackups = new SqlBackupRepository(database);
     }
 
     public StorixDatabase Database { get; }
@@ -23,6 +24,8 @@ internal sealed class AppServices
     public RunRepository Runs { get; }
 
     public SettingsRepository Settings { get; }
+
+    public SqlBackupRepository SqlBackups { get; }
 
     public IDestinationFactory Destinations { get; } = new DestinationFactory();
 

@@ -16,7 +16,8 @@ public static class SqlServerRestorer
         string? dataDirectory,
         bool replace,
         CancellationToken cancellationToken,
-        int commandTimeoutSeconds = 0)
+        int commandTimeoutSeconds = 0,
+        bool recover = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
 
@@ -70,8 +71,77 @@ public static class SqlServerRestorer
             await single.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        restore.CommandText = $"RESTORE DATABASE {Quote(databaseName)} FROM DISK = @path WITH {string.Join(", ", moves)}, CHECKSUM{(replace ? ", REPLACE" : string.Empty)}, RECOVERY";
+        restore.CommandText = $"RESTORE DATABASE {Quote(databaseName)} FROM DISK = @path WITH {string.Join(", ", moves)}, CHECKSUM{(replace ? ", REPLACE" : string.Empty)}, {(recover ? "RECOVERY" : "NORECOVERY")}";
         await restore.ExecuteNonQueryAsync(cancellationToken);
+
+        if (replace && recover)
+        {
+            await using var multi = connection.CreateCommand();
+            multi.CommandText = $"ALTER DATABASE {Quote(databaseName)} SET MULTI_USER";
+            await multi.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Restores a chain (full, optional differential, logs) produced by <see cref="SqlRestoreChain.Plan"/>.
+    /// </summary>
+    /// <param name="files">Backup files in restore order with their type (paths as seen by SQL Server).</param>
+    /// <param name="stopAtUtc">Point in time for the last log backup (optional).</param>
+    public static async Task RestoreChainAsync(
+        string connectionString,
+        IReadOnlyList<(string Path, SqlBackupType Type)> files,
+        string databaseName,
+        string? dataDirectory,
+        bool replace,
+        DateTimeOffset? stopAtUtc,
+        CancellationToken cancellationToken,
+        int commandTimeoutSeconds = 0)
+    {
+        if (files.Count == 0 || files[0].Type != SqlBackupType.Full)
+        {
+            throw new ArgumentException("A restore chain must start with a full backup.", nameof(files));
+        }
+
+        // Full backup WITH NORECOVERY (reusing the WITH MOVE logic).
+        await RestoreAsync(connectionString, files[0].Path, databaseName, dataDirectory, replace, cancellationToken, commandTimeoutSeconds, recover: false);
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        string? stopAtLocal = null;
+        if (stopAtUtc is not null)
+        {
+            // STOPAT uses the server's local time.
+            await using var offset = connection.CreateCommand();
+            offset.CommandText = "SELECT DATEDIFF(MINUTE, SYSUTCDATETIME(), SYSDATETIME())";
+            var minutes = (int)(await offset.ExecuteScalarAsync(cancellationToken))!;
+            stopAtLocal = stopAtUtc.Value.UtcDateTime.AddMinutes(minutes).ToString("yyyy-MM-ddTHH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        for (var i = 1; i < files.Count; i++)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandTimeout = commandTimeoutSeconds;
+            command.Parameters.AddWithValue("@path", files[i].Path);
+            var isLast = i == files.Count - 1;
+            var stopAt = files[i].Type == SqlBackupType.Log && isLast && stopAtLocal is not null ? ", STOPAT = @stopAt" : string.Empty;
+            if (stopAt.Length > 0)
+            {
+                command.Parameters.AddWithValue("@stopAt", stopAtLocal!);
+            }
+
+            command.CommandText = files[i].Type == SqlBackupType.Log
+                ? $"RESTORE LOG {Quote(databaseName)} FROM DISK = @path WITH CHECKSUM, NORECOVERY{stopAt}"
+                : $"RESTORE DATABASE {Quote(databaseName)} FROM DISK = @path WITH CHECKSUM, NORECOVERY";
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var recover = connection.CreateCommand())
+        {
+            recover.CommandTimeout = commandTimeoutSeconds;
+            recover.CommandText = $"RESTORE DATABASE {Quote(databaseName)} WITH RECOVERY";
+            await recover.ExecuteNonQueryAsync(cancellationToken);
+        }
 
         if (replace)
         {
