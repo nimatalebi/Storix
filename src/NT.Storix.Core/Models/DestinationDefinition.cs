@@ -8,6 +8,7 @@ public enum DestinationKind
     Ftp,
     Sftp,
     GoogleDrive,
+    S3,
 }
 
 public sealed class DestinationDefinition
@@ -28,12 +29,15 @@ public sealed class DestinationDefinition
 
     public GoogleDriveOptions GoogleDrive { get; set; } = new();
 
+    public S3Options S3 { get; set; } = new();
+
     public object ActiveOptions => Kind switch
     {
         DestinationKind.LocalFolder => LocalFolder,
         DestinationKind.Ftp => Ftp,
         DestinationKind.Sftp => Sftp,
         DestinationKind.GoogleDrive => GoogleDrive,
+        DestinationKind.S3 => S3,
         _ => throw new NotSupportedException($"Destination kind {Kind} is not supported."),
     };
 
@@ -117,4 +121,34 @@ public sealed class GoogleDriveOptions
 
     [Category("Transfer"), Description("Upload chunk size in MB (multiple of 0.25).")]
     public int ChunkSizeMb { get; set; } = 16;
+}
+
+public sealed class S3Options
+{
+    [Category("Connection"), Description("Endpoint URL for S3-compatible storage (MinIO, Wasabi, Cloudflare R2, Backblaze B2...). Leave empty for Amazon S3.")]
+    public string? ServiceUrl { get; set; }
+
+    [Category("Connection"), Description("Region, e.g. eu-central-1. For S3-compatible providers use the value they document (often us-east-1 or auto).")]
+    public string Region { get; set; } = "us-east-1";
+
+    [Category("Connection"), Description("Use path-style URLs (required by MinIO and most self-hosted servers).")]
+    public bool ForcePathStyle { get; set; }
+
+    [Category("Credentials")]
+    public string AccessKeyId { get; set; } = string.Empty;
+
+    [Category("Credentials"), PasswordPropertyText(true), Secret]
+    public string? SecretAccessKey { get; set; }
+
+    [Category("Target")]
+    public string BucketName { get; set; } = string.Empty;
+
+    [Category("Target"), Description("Optional folder (key prefix) inside the bucket, e.g. backups/server1")]
+    public string? Prefix { get; set; }
+
+    [Category("Transfer"), Description("Storage class, e.g. STANDARD, STANDARD_IA, GLACIER_IR. Empty = bucket default.")]
+    public string? StorageClass { get; set; }
+
+    [Category("Transfer"), Description("Multipart part size in MB (5-512).")]
+    public int PartSizeMb { get; set; } = 16;
 }

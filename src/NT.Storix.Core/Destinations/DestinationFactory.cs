@@ -15,6 +15,7 @@ public sealed class DestinationFactory : IDestinationFactory
         DestinationKind.Ftp => new FtpDestination(definition.Ftp),
         DestinationKind.Sftp => new SftpDestination(definition.Sftp),
         DestinationKind.GoogleDrive => new GoogleDriveDestination(definition.GoogleDrive),
+        DestinationKind.S3 => new S3Destination(definition.S3),
         _ => throw new NotSupportedException($"Destination kind {definition.Kind} is not supported."),
     };
 }

@@ -26,7 +26,7 @@ internal sealed class AboutForm : Form
             MaximumSize = new Size(470, 0),
             Margin = new Padding(3, 12, 3, 12),
             Text = "Storix is a free, open-source backup agent for Windows. It backs up files, SQL Server and MongoDB " +
-                   "on a schedule, compresses and encrypts them, and stores them on local folders, FTP, SFTP and Google Drive.",
+                   "on a schedule, compresses and encrypts them, and stores them on local folders, FTP, SFTP, Google Drive and S3.",
         });
 
         grid.Row("GitHub", Link(StorixInfo.RepositoryUrl, StorixInfo.RepositoryUrl));

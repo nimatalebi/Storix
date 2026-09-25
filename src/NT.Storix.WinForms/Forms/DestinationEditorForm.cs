@@ -13,6 +13,8 @@ internal sealed class DestinationEditorForm : Form
     private readonly ComboBox _kind;
     private readonly PropertyGrid _grid = new() { ToolbarVisible = false, PropertySort = PropertySort.Categorized, HelpVisible = true };
     private readonly Button _test;
+    private readonly ComboBox _preset = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220, Anchor = AnchorStyles.Left };
+    private readonly Label _presetHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(480, 0) };
 
     public DestinationEditorForm(DestinationDefinition destination, IDestinationFactory factory)
     {
@@ -29,10 +31,24 @@ internal sealed class DestinationEditorForm : Form
         _name.Text = Destination.Name;
         _enabled.Checked = Destination.Enabled;
         _grid.SelectedObject = Destination.ActiveOptions;
+        _preset.Items.Add("(choose a provider)");
+        _preset.Items.AddRange(S3Preset.All.Cast<object>().ToArray());
+        _preset.SelectedIndex = 0;
+        _preset.SelectedIndexChanged += (_, _) =>
+        {
+            if (_preset.SelectedItem is S3Preset preset)
+            {
+                preset.ApplyTo(Destination.S3);
+                _presetHint.Text = preset.Hint;
+                _grid.Refresh();
+            }
+        };
+
         _kind.SelectedIndexChanged += (_, _) =>
         {
             Destination.Kind = (DestinationKind)_kind.SelectedItem!;
             _grid.SelectedObject = Destination.ActiveOptions;
+            UpdatePresetVisibility();
         };
 
         _test = Ui.Button("Test connection", OnTest, 130);
@@ -43,6 +59,8 @@ internal sealed class DestinationEditorForm : Form
         grid.Row("Name", _name);
         grid.Row("Type", _kind);
         grid.Row(null, _enabled);
+        grid.Row("S3 provider", _preset);
+        grid.Row(null, _presetHint);
         grid.Row(null, _grid, height: 330);
         grid.Row(null, Ui.Buttons(_test, ok, cancel));
         grid.Fill();
@@ -50,9 +68,20 @@ internal sealed class DestinationEditorForm : Form
         AcceptButton = ok;
         CancelButton = cancel;
         Controls.Add(grid);
+        UpdatePresetVisibility();
     }
 
     public DestinationDefinition Destination { get; }
+
+    private void UpdatePresetVisibility()
+    {
+        var visible = Destination.Kind == DestinationKind.S3;
+        _preset.Visible = _presetHint.Visible = visible;
+        if (_preset.Parent is TableLayoutPanel table && table.GetControlFromPosition(0, table.GetRow(_preset)) is { } label)
+        {
+            label.Visible = visible;
+        }
+    }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {

@@ -566,6 +566,7 @@ internal sealed class JobEditorForm : Form
         DestinationKind.Ftp => $"ftp://{d.Ftp.Host}:{d.Ftp.Port}{d.Ftp.RemotePath}",
         DestinationKind.Sftp => $"sftp://{d.Sftp.Host}:{d.Sftp.Port}/{d.Sftp.RemotePath.TrimStart('/')}",
         DestinationKind.GoogleDrive => $"Drive folder {d.GoogleDrive.FolderId}",
+        DestinationKind.S3 => $"s3://{d.S3.BucketName}/{d.S3.Prefix?.Trim('/')}",
         _ => string.Empty,
     };
 

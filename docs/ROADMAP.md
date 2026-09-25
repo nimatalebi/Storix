@@ -26,7 +26,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ## P1: missing essentials
 
-- [ ] Amazon S3 and S3-compatible destinations (MinIO, Wasabi, R2, B2)
+- [x] Amazon S3 and S3-compatible destinations (MinIO, Wasabi, R2, B2) with provider presets
 - [ ] Chunked archives (split volumes) with chunk-level resume
 - [ ] Restore from a destination or a local folder (engine done; wizard in the manager pending)
 - [ ] Google Drive OAuth sign-in for personal "My Drive"
@@ -65,7 +65,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ### More destinations
 - [ ] Azure Blob, OneDrive/SharePoint, Dropbox, Backblaze B2, WebDAV/Nextcloud, SMB with explicit credentials
-- [ ] rclone adapter; presets for S3-compatible providers
+- [ ] rclone adapter
+- [x] Presets for S3-compatible providers
 
 ### Restore experience
 - [ ] Browse and search inside a backup; restore single files

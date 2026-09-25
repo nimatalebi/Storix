@@ -3,7 +3,7 @@
 **Storix** is an open-source backup agent for Windows.
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
 
-Storix backs up **files and folders**, **SQL Server** databases (`.bak`) and **MongoDB** (`mongodump`). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP** or **Google Drive**. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
+Storix backs up **files and folders**, **SQL Server** databases (`.bak`) and **MongoDB** (`mongodump`). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** or **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…). It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
 [![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
@@ -39,7 +39,7 @@ Backup Agent
 │   ├── FTP
 │   ├── SFTP
 │   ├── Google Drive
-│   └── S3                  (planned)
+│   └── S3 / S3-compatible
 │
 └── Monitoring
     ├── Logs
@@ -50,7 +50,7 @@ Backup Agent
 
 | Capability | How Storix handles it |
 |---|---|
-| **Resume upload** | Uploads go to `<name>.partial` first. On retry, FTP and SFTP (and local folders) continue from the bytes already sent. Google Drive uses its resumable upload protocol. |
+| **Resume upload** | Uploads go to `<name>.partial` first. On retry, FTP and SFTP (and local folders) continue from the bytes already sent. Google Drive uses its resumable upload protocol. S3 uses multipart uploads; unfinished ones are aborted before a retry. |
 | **Retry** | The database dump and each upload are retried with exponential back-off (attempt count, first delay and multiplier are set per job). |
 | **Checksum** | A SHA-256 hash is saved in the history and uploaded as a `sha256sum`-compatible `.sha256` file next to each archive. |
 | **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations. Encryption streams data, so large files are fine. |
@@ -137,7 +137,7 @@ dotnet test Storix.sln
 
 ### Integration tests
 
-These tests start real SFTP, FTP, SQL Server and MongoDB (replica set) servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
+These tests start real SFTP, FTP, S3 (LocalStack), SQL Server and MongoDB (replica set) servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
 
 ```bash
 STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests
