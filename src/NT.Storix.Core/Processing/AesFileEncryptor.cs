@@ -1,17 +1,24 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using NT.Storix.Core.Security;
 
 namespace NT.Storix.Core.Processing;
 
 /// <summary>
-/// Streaming file encryption: AES-256-CBC + HMAC-SHA256 (encrypt-then-MAC) with PBKDF2-SHA256 key derivation.
+/// Streaming file encryption: AES-256-CBC + HMAC-SHA256 (encrypt-then-MAC).
 /// </summary>
 /// <remarks>
-/// File layout:
+/// Version 1 (password): key from PBKDF2-SHA256.
 /// <code>
-/// "STRX" | version (1 byte) | PBKDF2 iterations (int32 LE) | salt (16) | IV (16) | ciphertext ... | HMAC-SHA256 (32)
+/// "STRX" | 1 | PBKDF2 iterations (int32 LE) | salt (16) | IV (16) | ciphertext ... | HMAC-SHA256 (32)
+/// </code>
+/// Version 2 (public key): a random 512-bit data key is wrapped with RSA-OAEP-SHA256, so only the holder of the
+/// private key can decrypt. The machine that makes the backups never needs the private key.
+/// <code>
+/// "STRX" | 2 | key id = SHA-256 of the public key (32) | wrapped key length (int32 LE) | wrapped key | IV (16) | ciphertext ... | HMAC-SHA256 (32)
 /// </code>
 /// The HMAC covers the header and the ciphertext. Decryption verifies the HMAC before producing any output.
+/// Both versions are always readable.
 /// </remarks>
 public static class AesFileEncryptor
 {
@@ -19,28 +26,107 @@ public static class AesFileEncryptor
     public const int DefaultIterations = 600_000;
 
     private static readonly byte[] Magic = "STRX"u8.ToArray();
-    private const byte Version = 1;
+    private const byte PasswordVersion = 1;
+    private const byte PublicKeyVersion = 2;
     private const int SaltSize = 16;
     private const int IvSize = 16;
     private const int MacSize = 32;
-    private const int HeaderSize = 4 + 1 + 4 + SaltSize + IvSize;
+    private const int KeyIdSize = 32;
+    private const int PasswordHeaderSize = 4 + 1 + 4 + SaltSize + IvSize;
     private const int BufferSize = 1024 * 1024;
 
+    /// <summary>Encrypts with a password (format version 1).</summary>
     public static async Task EncryptAsync(string inputPath, string outputPath, string password, CancellationToken cancellationToken, int iterations = DefaultIterations)
     {
         ArgumentException.ThrowIfNullOrEmpty(password);
+        if (PrivateKeySecret.IsPublicKey(password))
+        {
+            await EncryptWithPublicKeyAsync(inputPath, outputPath, PrivateKeySecret.PublicKeyPem(password), cancellationToken);
+            return;
+        }
 
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
         var iv = RandomNumberGenerator.GetBytes(IvSize);
         var (encKey, macKey) = DeriveKeys(password, salt, iterations);
 
-        var header = new byte[HeaderSize];
+        var header = new byte[PasswordHeaderSize];
         Magic.CopyTo(header, 0);
-        header[4] = Version;
+        header[4] = PasswordVersion;
         BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(5, 4), iterations);
         salt.CopyTo(header, 9);
         iv.CopyTo(header, 9 + SaltSize);
 
+        await EncryptCoreAsync(inputPath, outputPath, header, encKey, macKey, iv, cancellationToken);
+    }
+
+    /// <summary>Encrypts for the holder of the private key matching <paramref name="publicKeyPem"/> (format version 2).</summary>
+    public static async Task EncryptWithPublicKeyAsync(string inputPath, string outputPath, string publicKeyPem, CancellationToken cancellationToken)
+    {
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(publicKeyPem);
+
+        var dataKey = RandomNumberGenerator.GetBytes(64);
+        var iv = RandomNumberGenerator.GetBytes(IvSize);
+        var wrapped = rsa.Encrypt(dataKey, RSAEncryptionPadding.OaepSHA256);
+        var keyId = KeyId(rsa);
+
+        var header = new byte[4 + 1 + KeyIdSize + 4 + wrapped.Length + IvSize];
+        Magic.CopyTo(header, 0);
+        header[4] = PublicKeyVersion;
+        keyId.CopyTo(header, 5);
+        BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(5 + KeyIdSize, 4), wrapped.Length);
+        wrapped.CopyTo(header, 5 + KeyIdSize + 4);
+        iv.CopyTo(header, header.Length - IvSize);
+
+        await EncryptCoreAsync(inputPath, outputPath, header, dataKey[..32], dataKey[32..], iv, cancellationToken);
+        CryptographicOperations.ZeroMemory(dataKey);
+    }
+
+    /// <summary>Verifies the password (or private key) and the integrity of an encrypted file without decrypting it.</summary>
+    public static async Task VerifyAsync(string encryptedPath, string password, CancellationToken cancellationToken)
+    {
+        await using var input = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
+        await ReadAndAuthenticateAsync(input, password, cancellationToken);
+    }
+
+    public static async Task DecryptAsync(string encryptedPath, string outputPath, string password, CancellationToken cancellationToken)
+    {
+        await using var input = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
+        var (encKey, iv, headerLength, cipherLength) = await ReadAndAuthenticateAsync(input, password, cancellationToken);
+
+        input.Position = headerLength;
+        using var aes = Aes.Create();
+        aes.Key = encKey;
+        aes.IV = iv;
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+
+        await using var output = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
+        await using var bounded = new BoundedReadStream(input, cipherLength);
+        await using var crypto = new CryptoStream(bounded, aes.CreateDecryptor(), CryptoStreamMode.Read, leaveOpen: true);
+        await crypto.CopyToAsync(output, BufferSize, cancellationToken);
+    }
+
+    public static bool IsEncryptedFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        Span<byte> magic = stackalloc byte[4];
+        return stream.ReadAtLeast(magic, 4, throwOnEndOfStream: false) == 4 && magic.SequenceEqual(Magic);
+    }
+
+    /// <summary>True when the file was encrypted with a public key (needs the private key to restore).</summary>
+    public static bool UsesPublicKey(string path)
+    {
+        using var stream = File.OpenRead(path);
+        Span<byte> header = stackalloc byte[5];
+        return stream.ReadAtLeast(header, 5, throwOnEndOfStream: false) == 5 && header[..4].SequenceEqual(Magic) && header[4] == PublicKeyVersion;
+    }
+
+    /// <summary>Identifier of an RSA key: SHA-256 of its public key (SubjectPublicKeyInfo).</summary>
+    public static byte[] KeyId(RSA rsa) => SHA256.HashData(rsa.ExportSubjectPublicKeyInfo());
+
+    private static async Task EncryptCoreAsync(string inputPath, string outputPath, byte[] header, byte[] encKey, byte[] macKey, byte[] iv, CancellationToken cancellationToken)
+    {
         using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, macKey);
         hmac.AppendData(header);
 
@@ -64,59 +150,72 @@ public static class AesFileEncryptor
         await output.WriteAsync(hmac.GetHashAndReset(), cancellationToken);
     }
 
-    /// <summary>Verifies the password and the integrity of an encrypted file without decrypting it.</summary>
-    public static async Task VerifyAsync(string encryptedPath, string password, CancellationToken cancellationToken)
-    {
-        await using var input = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
-        await ReadAndAuthenticateAsync(input, password, cancellationToken);
-    }
-
-    public static async Task DecryptAsync(string encryptedPath, string outputPath, string password, CancellationToken cancellationToken)
-    {
-        await using var input = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
-        var (encKey, iv, cipherLength) = await ReadAndAuthenticateAsync(input, password, cancellationToken);
-
-        input.Position = HeaderSize;
-        using var aes = Aes.Create();
-        aes.Key = encKey;
-        aes.IV = iv;
-        aes.Mode = CipherMode.CBC;
-        aes.Padding = PaddingMode.PKCS7;
-
-        await using var output = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
-        await using var bounded = new BoundedReadStream(input, cipherLength);
-        await using var crypto = new CryptoStream(bounded, aes.CreateDecryptor(), CryptoStreamMode.Read, leaveOpen: true);
-        await crypto.CopyToAsync(output, BufferSize, cancellationToken);
-    }
-
-    public static bool IsEncryptedFile(string path)
-    {
-        using var stream = File.OpenRead(path);
-        Span<byte> magic = stackalloc byte[4];
-        return stream.ReadAtLeast(magic, 4, throwOnEndOfStream: false) == 4 && magic.SequenceEqual(Magic);
-    }
-
-    private static async Task<(byte[] EncKey, byte[] Iv, long CipherLength)> ReadAndAuthenticateAsync(FileStream input, string password, CancellationToken cancellationToken)
+    private static async Task<(byte[] EncKey, byte[] Iv, int HeaderLength, long CipherLength)> ReadAndAuthenticateAsync(FileStream input, string password, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(password);
 
-        var header = new byte[HeaderSize];
-        await input.ReadExactlyAsync(header, cancellationToken);
-        if (!header.AsSpan(0, 4).SequenceEqual(Magic) || header[4] != Version)
+        var prefix = new byte[5];
+        await input.ReadExactlyAsync(prefix, cancellationToken);
+        if (!prefix.AsSpan(0, 4).SequenceEqual(Magic))
         {
-            throw new InvalidDataException("The file is not a Storix encrypted archive or its version is not supported.");
+            throw new InvalidDataException("The file is not a Storix encrypted archive.");
         }
 
-        var iterations = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(5, 4));
-        var salt = header.AsSpan(9, SaltSize).ToArray();
-        var iv = header.AsSpan(9 + SaltSize, IvSize).ToArray();
-        var cipherLength = input.Length - HeaderSize - MacSize;
+        byte[] header;
+        byte[] encKey;
+        byte[] macKey;
+        byte[] iv;
+        switch (prefix[4])
+        {
+            case PasswordVersion:
+            {
+                header = new byte[PasswordHeaderSize];
+                prefix.CopyTo(header, 0);
+                await input.ReadExactlyAsync(header.AsMemory(5), cancellationToken);
+                var iterations = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(5, 4));
+                var salt = header.AsSpan(9, SaltSize).ToArray();
+                iv = header.AsSpan(9 + SaltSize, IvSize).ToArray();
+                (encKey, macKey) = DeriveKeys(password, salt, iterations);
+                break;
+            }
+
+            case PublicKeyVersion:
+            {
+                var fixedPart = new byte[KeyIdSize + 4];
+                await input.ReadExactlyAsync(fixedPart, cancellationToken);
+                var wrappedLength = BinaryPrimitives.ReadInt32LittleEndian(fixedPart.AsSpan(KeyIdSize, 4));
+                if (wrappedLength is <= 0 or > 8192)
+                {
+                    throw new InvalidDataException("The encrypted file header is corrupted.");
+                }
+
+                var rest = new byte[wrappedLength + IvSize];
+                await input.ReadExactlyAsync(rest, cancellationToken);
+                header = [.. prefix, .. fixedPart, .. rest];
+                iv = rest[wrappedLength..];
+
+                using var rsa = PrivateKeySecret.LoadPrivateKey(password)
+                    ?? throw new CryptographicException("This backup was encrypted with a public key. Select the private key file to restore it.");
+                if (!KeyId(rsa).AsSpan().SequenceEqual(fixedPart.AsSpan(0, KeyIdSize)))
+                {
+                    throw new CryptographicException("This backup was encrypted with a different key pair.");
+                }
+
+                var dataKey = rsa.Decrypt(rest[..wrappedLength], RSAEncryptionPadding.OaepSHA256);
+                (encKey, macKey) = (dataKey[..32], dataKey[32..]);
+                break;
+            }
+
+            default:
+                throw new InvalidDataException($"Unsupported Storix encryption format version {prefix[4]}.");
+        }
+
+        var cipherLength = input.Length - header.Length - MacSize;
         if (cipherLength < 0 || cipherLength % 16 != 0)
         {
             throw new InvalidDataException("The encrypted file is truncated.");
         }
 
-        var (encKey, macKey) = DeriveKeys(password, salt, iterations);
         using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, macKey);
         hmac.AppendData(header);
 
@@ -141,7 +240,7 @@ public static class AesFileEncryptor
             throw new CryptographicException("Wrong password or the file has been modified/corrupted.");
         }
 
-        return (encKey, iv, cipherLength);
+        return (encKey, iv, header.Length, cipherLength);
     }
 
     private static (byte[] EncKey, byte[] MacKey) DeriveKeys(string password, byte[] salt, int iterations)

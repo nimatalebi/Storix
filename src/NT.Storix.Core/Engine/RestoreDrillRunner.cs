@@ -40,34 +40,45 @@ public sealed class RestoreDrillRunner(
             log.Info($"Latest backup: {latest.Name} ({latest.CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm}).");
 
             folder = DrillFolder(job, run);
-            var secret = job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null;
-            var result = await restore.RestoreFromDestinationAsync(destination, latest.Name, new RestoreRequest(folder, secret), new Progress<string>(log.Info), cancellationToken);
-            if (result.Files.Count == 0)
+            if (job.Processing.Encrypt && job.Processing.EncryptionMode == EncryptionMode.PublicKey)
             {
-                throw new InvalidDataException("The backup is empty.");
+                // The private key is kept offline on purpose: only the download and the checksum can be verified.
+                await VerifyChecksumOnlyAsync(destination, latest.Name, folder, cancellationToken);
+                run.Status = RunStatus.Succeeded;
+                run.Message = $"Restore drill passed for {latest.Name} (checksum verified; public-key backups need the offline private key to decrypt).";
+                log.Info(run.Message);
             }
-
-            run.SizeBytes = result.TotalBytes;
-            log.Info($"Extracted {result.Files.Count} file(s), {BackupJobRunner.FormatSize(result.TotalBytes)}{(result.ChecksumVerified ? ", checksum verified" : string.Empty)}.");
-
-            if (job.Source.Kind == SourceKind.SqlServer && job.RestoreDrill.CheckSqlDatabases)
+            else
             {
-                foreach (var bak in Directory.EnumerateFiles(folder, "*.bak", SearchOption.AllDirectories))
+                var secret = job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null;
+                var result = await restore.RestoreFromDestinationAsync(destination, latest.Name, new RestoreRequest(folder, secret), new Progress<string>(log.Info), cancellationToken);
+                if (result.Files.Count == 0)
                 {
-                    await CheckSqlBackupAsync(job.Source.SqlServer, bak, log, cancellationToken);
+                    throw new InvalidDataException("The backup is empty.");
                 }
-            }
-            else if (job.Source.Kind == SourceKind.MongoDb && job.RestoreDrill.CheckMongoArchive)
-            {
-                foreach (var archive in Directory.EnumerateFiles(folder, "*.archive", SearchOption.AllDirectories))
-                {
-                    await MongoDbRestorer.DryRunAsync(MongorestorePath(job.Source.MongoDb), job.Source.MongoDb.ConnectionString!, archive, cancellationToken);
-                    log.Info($"mongorestore --dryRun succeeded for {Path.GetFileName(archive)}.");
-                }
-            }
 
-            run.Status = RunStatus.Succeeded;
-            run.Message = $"Restore drill passed: {result.Files.Count} file(s) restored from {latest.Name}.";
+                run.SizeBytes = result.TotalBytes;
+                log.Info($"Extracted {result.Files.Count} file(s), {BackupJobRunner.FormatSize(result.TotalBytes)}{(result.ChecksumVerified ? ", checksum verified" : string.Empty)}.");
+
+                if (job.Source.Kind == SourceKind.SqlServer && job.RestoreDrill.CheckSqlDatabases)
+                {
+                    foreach (var bak in Directory.EnumerateFiles(folder, "*.bak", SearchOption.AllDirectories))
+                    {
+                        await CheckSqlBackupAsync(job.Source.SqlServer, bak, log, cancellationToken);
+                    }
+                }
+                else if (job.Source.Kind == SourceKind.MongoDb && job.RestoreDrill.CheckMongoArchive)
+                {
+                    foreach (var archive in Directory.EnumerateFiles(folder, "*.archive", SearchOption.AllDirectories))
+                    {
+                        await MongoDbRestorer.DryRunAsync(MongorestorePath(job.Source.MongoDb), job.Source.MongoDb.ConnectionString!, archive, cancellationToken);
+                        log.Info($"mongorestore --dryRun succeeded for {Path.GetFileName(archive)}.");
+                    }
+                }
+
+                run.Status = RunStatus.Succeeded;
+                run.Message = $"Restore drill passed: {result.Files.Count} file(s) restored from {latest.Name}.";
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -108,6 +119,38 @@ public sealed class RestoreDrillRunner(
         }
 
         return run;
+    }
+
+    private async Task VerifyChecksumOnlyAsync(DestinationDefinition destination, string backupName, string folder, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(folder);
+        await using var target = destinationFactory.Create(destination);
+        var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var local = Path.Combine(folder, backupName);
+        if (names.Contains(backupName))
+        {
+            await target.DownloadAsync(backupName, local, null, cancellationToken);
+        }
+        else
+        {
+            var manifestPath = local + Processing.ChunkManifest.Extension;
+            await target.DownloadAsync(backupName + Processing.ChunkManifest.Extension, manifestPath, null, cancellationToken);
+            var manifest = Processing.ChunkManifest.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+            await Processing.ChunkedArchive.JoinAsync(manifest, async (chunk, ct) =>
+            {
+                var path = Path.Combine(folder, chunk.Name);
+                await target.DownloadAsync(chunk.Name, path, null, ct);
+                return path;
+            }, local, deleteChunks: true, cancellationToken);
+            return; // JoinAsync verified every volume and the whole file against the manifest.
+        }
+
+        await target.DownloadAsync(backupName + Processing.Checksum.SidecarExtension, local + Processing.Checksum.SidecarExtension, null, cancellationToken);
+        var expected = (await File.ReadAllTextAsync(local + Processing.Checksum.SidecarExtension, cancellationToken)).Split(' ')[0];
+        if (!string.Equals(expected, await Processing.Checksum.Sha256Async(local, cancellationToken), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Checksum mismatch: the backup on the destination is corrupted.");
+        }
     }
 
     /// <summary>

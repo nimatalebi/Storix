@@ -90,9 +90,11 @@ public sealed class BackupJobRunner(
                 var secret = EncryptionSecret.Resolve(job.Processing)!;
                 await AesFileEncryptor.EncryptAsync(zipPath, finalPath, secret, cancellationToken);
                 File.Delete(zipPath);
-                log.Info("Archive encrypted (AES-256).");
+                var publicKey = job.Processing.EncryptionMode == EncryptionMode.PublicKey;
+                log.Info(publicKey ? "Archive encrypted (AES-256, key wrapped with the job's RSA public key)." : "Archive encrypted (AES-256).");
 
-                if (job.Processing.VerifyArchive)
+                // With a public key the private key is (deliberately) not on this machine: nothing to verify against.
+                if (job.Processing.VerifyArchive && !publicKey)
                 {
                     await AesFileEncryptor.VerifyAsync(finalPath, secret, cancellationToken);
                     log.Info("Encrypted archive verified.");
@@ -349,9 +351,22 @@ public sealed class BackupJobRunner(
             errors.Add($"Schedule: {scheduleError}");
         }
 
-        if (job.Processing.Encrypt && string.IsNullOrEmpty(job.Processing.EncryptionPassword) && string.IsNullOrWhiteSpace(job.Processing.EncryptionKeyFile))
+        if (job.Processing.Encrypt && job.Processing.EncryptionMode == EncryptionMode.Password
+            && string.IsNullOrEmpty(job.Processing.EncryptionPassword) && string.IsNullOrWhiteSpace(job.Processing.EncryptionKeyFile))
         {
             errors.Add("Encryption is enabled but no password or key file is set.");
+        }
+
+        if (job.Processing.Encrypt && job.Processing.EncryptionMode == EncryptionMode.PublicKey)
+        {
+            try
+            {
+                PrivateKeySecret.Fingerprint(job.Processing.PublicKeyPem ?? string.Empty);
+            }
+            catch (Exception ex) when (ex is ArgumentException or System.Security.Cryptography.CryptographicException)
+            {
+                errors.Add("Public-key encryption needs a valid RSA public key (PEM).");
+            }
         }
 
         try

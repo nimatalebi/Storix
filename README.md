@@ -65,7 +65,7 @@ Backup Agent
 | **Resume upload** | Uploads go to `<name>.partial` first. On retry, FTP and SFTP (and local folders) continue from the bytes already sent. Google Drive uses its resumable upload protocol. S3 uses multipart uploads; unfinished ones are aborted before a retry. |
 | **Retry** | The database dump and each upload are retried with exponential back-off (attempt count, first delay and multiplier are set per job). |
 | **Checksum** | A SHA-256 hash is saved in the history and uploaded as a `sha256sum`-compatible `.sha256` file next to each archive. |
-| **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations. Encryption streams data, so large files are fine. |
+| **Encryption** | AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC). The key comes from your password via PBKDF2-SHA256 with 600,000 iterations, or from a random data key wrapped with an RSA-4096 public key (the private key stays offline). Encryption streams data, so large files are fine. |
 | **Retention** | "Keep last N" and/or "delete older than N days", plus long-term GFS rules (keep daily/weekly/monthly/yearly), applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
 | **Chunking** | Optionally split backups into volumes (`.part0001`, `.part0002`…) with a manifest. Each volume is uploaded and checked separately; after an interruption, only the missing volumes are uploaded again. |
@@ -257,7 +257,11 @@ Without the manager:
 3. Extract the ZIP, then use `RESTORE DATABASE` or `mongorestore --archive=...`.
 
 The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix.Core/Processing/AesFileEncryptor.cs):
-`"STRX" | version | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`.
+
+- Version 1 (password): `"STRX" | 1 | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`
+- Version 2 (public key): `"STRX" | 2 | key id | RSA-OAEP-wrapped data key | IV | AES-256-CBC ciphertext | HMAC-SHA256`
+
+**Public-key mode (ransomware protection):** generate a key pair in the job editor (**Processing → Generate key pair…**) or with `storix keygen --out private.pem --passphrase …`. The server keeps only the public key, and you store the private key file offline. Even an attacker who takes over the server cannot decrypt the old backups. To restore, select the private key file and enter its passphrase.
 
 > **Keep your encryption passwords safe.** Without the password (and the key file, if you use one), an encrypted backup cannot be restored. In the job editor, **Processing → Recovery sheet…** prints everything needed for a restore. You can also add a random **key file**, which is combined with the password.
 

@@ -11,7 +11,11 @@ public static class EncryptionSecret
 {
     private const string KeyFileMarker = "\u0000storix-keyfile:";
 
-    public static string? Resolve(ProcessingOptions options) => Combine(options.EncryptionPassword, options.EncryptionKeyFile);
+    /// <summary>Secret used to encrypt a job's backups (password/key file, or the job's public key).</summary>
+    public static string? Resolve(ProcessingOptions options) =>
+        options.EncryptionMode == EncryptionMode.PublicKey
+            ? string.IsNullOrWhiteSpace(options.PublicKeyPem) ? null : PrivateKeySecret.ForPublicKey(options.PublicKeyPem)
+            : Combine(options.EncryptionPassword, options.EncryptionKeyFile);
 
     /// <exception cref="FileNotFoundException">The key file does not exist.</exception>
     public static string? Combine(string? password, string? keyFilePath)
@@ -24,6 +28,13 @@ public static class EncryptionSecret
         if (!File.Exists(keyFilePath))
         {
             throw new FileNotFoundException("The encryption key file was not found.", keyFilePath);
+        }
+
+        // A PEM private key restores public-key backups; the password field then holds its passphrase.
+        var head = File.ReadLines(keyFilePath).FirstOrDefault() ?? string.Empty;
+        if (head.StartsWith("-----BEGIN", StringComparison.Ordinal) && head.Contains("PRIVATE KEY", StringComparison.Ordinal))
+        {
+            return PrivateKeySecret.ForPrivateKey(File.ReadAllText(keyFilePath), password);
         }
 
         using var stream = File.OpenRead(keyFilePath);

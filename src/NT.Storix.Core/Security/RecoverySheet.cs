@@ -40,8 +40,17 @@ public static class RecoverySheet
         html.Append($"<tr><td>Job id</td><td>{job.Id}</td></tr>");
         html.Append($"<tr><td>Backup file names</td><td>{E(job.FilePrefix)}_YYYYMMDD_HHMMSS.zip.aes</td></tr>");
         html.Append($"<tr><td>Destinations</td><td>{E(string.Join(", ", job.Destinations.Select(d => d.ToString())))}</td></tr>");
-        html.Append($"<tr><td>Encryption</td><td>AES-256-CBC + HMAC-SHA256, key from PBKDF2-SHA256 (600,000 iterations)</td></tr>");
-        html.Append($"<tr><td>Password</td><td class=\"secret\">{(string.IsNullOrEmpty(p.EncryptionPassword) ? "(none)" : includePassword ? E(p.EncryptionPassword) : "________________________________")}</td></tr>");
+        if (p.EncryptionMode == EncryptionMode.PublicKey)
+        {
+            html.Append("<tr><td>Encryption</td><td>AES-256-CBC + HMAC-SHA256, data key wrapped with RSA-4096-OAEP (public key)</td></tr>");
+            html.Append($"<tr><td>Key fingerprint</td><td class=\"secret\">{E(p.PublicKeyPem is null ? "(none)" : PrivateKeySecret.Fingerprint(p.PublicKeyPem))}</td></tr>");
+            html.Append("<tr><td>Private key</td><td>Kept offline (.pem file) with its passphrase: write down where it is stored.<br><br>Location: ________________________________</td></tr>");
+        }
+        else
+        {
+            html.Append($"<tr><td>Encryption</td><td>AES-256-CBC + HMAC-SHA256, key from PBKDF2-SHA256 (600,000 iterations)</td></tr>");
+            html.Append($"<tr><td>Password</td><td class=\"secret\">{(string.IsNullOrEmpty(p.EncryptionPassword) ? "(none)" : includePassword ? E(p.EncryptionPassword) : "________________________________")}</td></tr>");
+        }
         if (keyFile is not null)
         {
             html.Append($"<tr><td>Key file</td><td>{E(Path.GetFileName(keyFile))}<br><span class=\"muted\">{E(keyFile)}</span>" +

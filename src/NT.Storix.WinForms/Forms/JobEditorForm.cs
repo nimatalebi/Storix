@@ -60,6 +60,9 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _passwordConfirm = new() { UseSystemPasswordChar = true };
     private readonly CheckBox _verify = new() { Text = "Verify archive before uploading", AutoSize = true };
     private readonly TextBox _keyFile = new();
+    private readonly ComboBox _encryptionMode = Ui.EnumCombo(EncryptionMode.Password);
+    private readonly Label _publicKeyInfo = new() { AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(600, 0) };
+    private string? _publicKeyPem;
     private readonly NumericUpDown _splitSize = Ui.Number(0, 1_000_000);
     private readonly CheckBox _recoveryConfirmed = new() { Text = "I have stored the password / key file in a safe place (e.g. printed recovery sheet)", AutoSize = true };
 
@@ -143,7 +146,7 @@ internal sealed class JobEditorForm : Form
     {
         if (DialogResult == DialogResult.OK)
         {
-            if (_encrypt.Checked && _password.Text != _passwordConfirm.Text)
+            if (_encrypt.Checked && (EncryptionMode)_encryptionMode.SelectedItem! == EncryptionMode.Password && _password.Text != _passwordConfirm.Text)
             {
                 Dialogs.Error(this, "The encryption passwords do not match.");
                 e.Cancel = true;
@@ -322,6 +325,19 @@ internal sealed class JobEditorForm : Form
         var grid = Ui.Form();
         grid.Row("Compression", _compression);
         grid.Row(null, _encrypt);
+        grid.Row("Encryption mode", _encryptionMode);
+        grid.Row(null, new Label
+        {
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            MaximumSize = new Size(640, 0),
+            Text = "Public key: this server only gets the public key; restores need the private key that you keep offline. " +
+                   "A hacker who takes over the server cannot read the old backups.",
+        });
+        grid.Row("Public key", _publicKeyInfo);
+        grid.Row(null, Ui.Buttons(
+            Ui.Button("Generate key pair...", (_, _) => GenerateKeyPair(), 150),
+            Ui.Button("Import public key...", (_, _) => ImportPublicKey(), 150)));
         grid.Row("Password", _password);
         grid.Row("Confirm password", _passwordConfirm);
         grid.Row(null, new Label
@@ -347,7 +363,8 @@ internal sealed class JobEditorForm : Form
         grid.Row("Split into volumes of (MB, 0 = off)", _splitSize);
         grid.Row(null, new Label { Text = "Volumes are uploaded one by one; an interrupted upload continues with the next missing volume.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
-        _encrypt.CheckedChanged += (_, _) => _password.Enabled = _passwordConfirm.Enabled = _keyFile.Enabled = _encrypt.Checked;
+        _encrypt.CheckedChanged += (_, _) => UpdateEncryptionUi();
+        _encryptionMode.SelectedIndexChanged += (_, _) => UpdateEncryptionUi();
         return grid;
     }
 
@@ -499,7 +516,9 @@ internal sealed class JobEditorForm : Form
         _password.Enabled = _passwordConfirm.Enabled = p.Encrypt;
         _verify.Checked = p.VerifyArchive;
         _keyFile.Text = p.EncryptionKeyFile;
-        _keyFile.Enabled = p.Encrypt;
+        _encryptionMode.SelectedItem = p.EncryptionMode;
+        _publicKeyPem = p.PublicKeyPem;
+        UpdateEncryptionUi();
         _recoveryConfirmed.Checked = p.RecoveryInfoConfirmed;
         _splitSize.Value = Math.Clamp(p.SplitSizeMb, 0, 1_000_000);
 
@@ -567,6 +586,8 @@ internal sealed class JobEditorForm : Form
         Job.Processing.EncryptionPassword = _encrypt.Checked ? _password.Text : null;
         Job.Processing.VerifyArchive = _verify.Checked;
         Job.Processing.EncryptionKeyFile = _encrypt.Checked ? NullIfEmpty(_keyFile.Text) : null;
+        Job.Processing.EncryptionMode = (EncryptionMode)_encryptionMode.SelectedItem!;
+        Job.Processing.PublicKeyPem = _publicKeyPem;
         Job.Processing.RecoveryInfoConfirmed = _recoveryConfirmed.Checked;
         Job.Processing.SplitSizeMb = (int)_splitSize.Value;
 
@@ -593,6 +614,81 @@ internal sealed class JobEditorForm : Form
         Job.Hooks.PostCommand = NullIfEmpty(_postCommand.Text);
         Job.Hooks.TimeoutSeconds = (int)_hookTimeout.Value;
         Job.Hooks.AbortOnPreCommandFailure = _abortOnPre.Checked;
+    }
+
+    private void UpdateEncryptionUi()
+    {
+        var publicKey = (EncryptionMode)_encryptionMode.SelectedItem! == EncryptionMode.PublicKey;
+        _encryptionMode.Enabled = _encrypt.Checked;
+        _password.Enabled = _passwordConfirm.Enabled = _keyFile.Enabled = _encrypt.Checked && !publicKey;
+        _publicKeyInfo.Text = !publicKey
+            ? "(not used in password mode)"
+            : _publicKeyPem is null ? "No public key yet: generate a key pair or import a public key." : $"RSA public key, fingerprint {TryFingerprint(_publicKeyPem)}";
+    }
+
+    private static string TryFingerprint(string pem)
+    {
+        try
+        {
+            return PrivateKeySecret.Fingerprint(pem);
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.Security.Cryptography.CryptographicException)
+        {
+            return "(invalid key)";
+        }
+    }
+
+    private void GenerateKeyPair()
+    {
+        using var passphrase = new PassphraseDialog("Private key passphrase",
+            "Choose a passphrase that protects the private key file. You need both the file and the passphrase to restore.", requireConfirmation: true);
+        if (passphrase.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        using var save = new SaveFileDialog { Filter = "Private key (*.pem)|*.pem", FileName = $"storix-{Job.FilePrefix}-private.pem", Title = "Save the private key (keep it OFF this server)" };
+        if (save.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        UseWaitCursor = true;
+        var (publicPem, privatePem) = PrivateKeySecret.GenerateKeyPair(passphrase.Passphrase);
+        UseWaitCursor = false;
+        File.WriteAllText(save.FileName, privatePem);
+        _publicKeyPem = publicPem;
+        _encryptionMode.SelectedItem = EncryptionMode.PublicKey;
+        _recoveryConfirmed.Checked = false;
+        UpdateEncryptionUi();
+        Dialogs.Info(this, $"The private key was saved to:\n{save.FileName}\n\nMove it to a safe place that is NOT this server (USB stick, password manager, safe) and delete it here. " +
+                           "Without it and its passphrase the backups cannot be restored.");
+    }
+
+    private void ImportPublicKey()
+    {
+        using var open = new OpenFileDialog { Filter = "Public key (*.pem)|*.pem|All files (*.*)|*.*" };
+        if (open.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var pem = File.ReadAllText(open.FileName);
+        if (pem.Contains("PRIVATE KEY", StringComparison.Ordinal))
+        {
+            Dialogs.Error(this, "This is a private key. Import the public key; keep the private key offline.");
+            return;
+        }
+
+        if (TryFingerprint(pem) == "(invalid key)")
+        {
+            Dialogs.Error(this, "The file does not contain a valid RSA public key.");
+            return;
+        }
+
+        _publicKeyPem = pem;
+        _encryptionMode.SelectedItem = EncryptionMode.PublicKey;
+        UpdateEncryptionUi();
     }
 
     private void CreateKeyFile()

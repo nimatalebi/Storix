@@ -22,7 +22,9 @@ internal static class Commands
           storix list-files <backup> [--password P] [--key-file F]   List the files inside a backup
           storix restore <backup> --to DIR [--password P] [--key-file F] [--include PATH]... [--overwrite]
           storix decrypt <file.aes> <output> [--password P] [--key-file F]
+          storix keygen --out private.pem [--passphrase P]           Create an RSA key pair for public-key encryption
             <backup> is a .zip / .zip.aes file, a .manifest.json or any .partNNNN volume.
+            Public-key backups: --key-file private.pem and --password <passphrase of the key>.
             Use --password-env NAME to read the password from an environment variable.
 
         Jobs (uses the Storix database of this machine):
@@ -65,6 +67,18 @@ internal static class Commands
                 await AesFileEncryptor.DecryptAsync(a.Required(0, "input file"), a.Required(1, "output file"), RequireSecret(a), CancellationToken.None);
                 output.WriteLine("Decrypted.");
                 return 0;
+            case "keygen":
+            {
+                var file = a.Option("out") ?? throw new CliException("Missing --out <private.pem>.");
+                var (publicPem, privatePem) = PrivateKeySecret.GenerateKeyPair(a.Option("passphrase"));
+                File.WriteAllText(file, privatePem);
+                File.WriteAllText(Path.ChangeExtension(file, null) + ".pub.pem", publicPem);
+                output.WriteLine($"Private key: {file}  (keep it offline)");
+                output.WriteLine($"Public key:  {Path.ChangeExtension(file, null)}.pub.pem  (import it into the job)");
+                output.WriteLine($"Fingerprint: {PrivateKeySecret.Fingerprint(publicPem)}");
+                return 0;
+            }
+
             case "jobs":
                 return Jobs(output);
             case "history":

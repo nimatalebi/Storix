@@ -8,14 +8,30 @@ public enum ArchiveCompression
     Smallest,
 }
 
+public enum EncryptionMode
+{
+    /// <summary>Password (and optional key file): whoever can run backups can also restore them.</summary>
+    Password,
+    /// <summary>
+    /// Public key: the server only holds the public key; restoring needs the private key kept offline.
+    /// A compromised server cannot read or re-encrypt old backups.
+    /// </summary>
+    PublicKey,
+}
+
 public sealed class ProcessingOptions
 {
     public ArchiveCompression Compression { get; set; } = ArchiveCompression.Optimal;
 
     public bool Encrypt { get; set; }
 
+    public EncryptionMode EncryptionMode { get; set; } = EncryptionMode.Password;
+
     [Secret]
     public string? EncryptionPassword { get; set; }
+
+    /// <summary>Public key (PEM) for <see cref="EncryptionMode.PublicKey"/>. Not a secret.</summary>
+    public string? PublicKeyPem { get; set; }
 
     /// <summary>
     /// Optional key file. Its SHA-256 is combined with the password, so both are needed to restore
