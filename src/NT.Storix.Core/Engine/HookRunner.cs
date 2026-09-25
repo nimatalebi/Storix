@@ -15,8 +15,10 @@ public static class HookRunner
 
     public static async Task<HookResult> RunAsync(string command, IReadOnlyDictionary<string, string?> environment, TimeSpan timeout, CancellationToken cancellationToken)
     {
+        // cmd.exe does not understand the escaping used by ArgumentList: pass the command line verbatim.
+        // With /s, cmd strips the outer quotes and runs the rest exactly as written.
         var start = OperatingSystem.IsWindows()
-            ? new ProcessStartInfo("cmd.exe") { ArgumentList = { "/d", "/s", "/c", command } }
+            ? new ProcessStartInfo("cmd.exe", $"/d /s /c \"{command}\"")
             : new ProcessStartInfo("/bin/sh") { ArgumentList = { "-c", command } };
         start.UseShellExecute = false;
         start.CreateNoWindow = true;
