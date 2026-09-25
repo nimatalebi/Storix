@@ -25,6 +25,14 @@ jobs:
       - name: Test
         run: dotnet test Storix.sln -c Release --no-build --verbosity normal
 
+      - name: UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: tests/NT.Storix.WinForms.Tests/bin/Release/net10.0-windows/screenshots/
+          if-no-files-found: ignore
+
   integration:
     name: Integration tests (Docker)
     runs-on: ubuntu-latest

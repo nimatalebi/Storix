@@ -247,6 +247,10 @@ dotnet run --project src/NT.Storix.Service
 6. **Retention & Retry**, then **Notifications** (e-mail; set up SMTP in **Settings**).
 7. Save. Use **Run now** to start a backup right away and follow it in **History**.
 
+The **Jobs** tab shows a one-line summary (how many jobs are OK, need attention or are running, and what runs next), a colored status per job with a live run time, and friendly times ("in 3 h", "Yesterday 21:15"). Actions are enabled only when they apply; right-click a job for all of them. Shortcuts: **Ctrl+N** new job, **Enter** edit, **Ctrl+R** run now, **Ctrl+D** duplicate, **Del** delete, **Ctrl+F** search, **F5** refresh. Routine confirmations appear in the status bar instead of dialogs, and the window, tab and column widths are remembered.
+
+Every destination type has a **setup guide** next to its settings: where to create the credentials (Google Cloud, Dropbox App Console, Azure app registrations, S3 keys, Telegram bot…), where to sign in, and the pitfalls, with direct links.
+
 The **Dashboard** tab shows the success rate of the last 30 days, the space each job and each destination takes (estimated from the run history and the retention policy), the daily growth of the backup size and a 30-day forecast.
 
 Storix Manager is available in **English and Persian** (right-to-left layout) with a **light, dark or system** theme: **Settings → Appearance** (per Windows user; restart the manager to apply). By default the language follows Windows. Some longer help texts and messages are still English only; translations are welcome.

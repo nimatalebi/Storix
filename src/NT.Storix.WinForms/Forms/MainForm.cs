@@ -20,6 +20,7 @@ internal sealed class MainForm : Form
     private readonly ListView _history = new() { View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, Dock = DockStyle.Fill };
     private readonly TextBox _runLog = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Dock = DockStyle.Fill, Font = new Font(FontFamily.GenericMonospace, 9) };
     private readonly ComboBox _historyFilter = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+    private readonly ComboBox _historyStatus = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 190 };
     private readonly ToolStripStatusLabel _serviceStatus = new();
     private readonly Label _serviceStatusLabel = new() { AutoSize = true, Font = new Font(SystemFonts.DefaultFont.FontFamily, 12, FontStyle.Bold) };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 5000 };
@@ -55,6 +56,14 @@ internal sealed class MainForm : Form
     private List<NotificationChannel> _channelList = [];
 
     private List<BackupJob> _jobList = [];
+    private readonly TabPage _jobsPage;
+    private readonly TabPage _dashboardPage;
+    private readonly TabPage _historyPage;
+    private readonly TabPage _auditPage;
+    private readonly TabPage _servicePage;
+    private readonly TabPage _settingsPage;
+    private readonly ToolStripStatusLabel _notice = new() { Spring = false };
+    private readonly System.Windows.Forms.Timer _noticeTimer = new() { Interval = 8000 };
     private readonly TrayIcon _tray;
     private readonly bool _startInTray;
 
@@ -70,13 +79,16 @@ internal sealed class MainForm : Form
         ClientSize = new Size(1100, 680);
         MinimumSize = new Size(820, 520);
 
-        _tabs.TabPages.Add(CreatePage("Jobs", BuildJobsTab()));
-        _tabs.TabPages.Add(CreatePage("History", BuildHistoryTab()));
-        _tabs.TabPages.Add(CreatePage("Settings", BuildSettingsTab()));
-        _tabs.TabPages.Add(CreatePage("Service", BuildServiceTab()));
-        _tabs.TabPages.Add(CreatePage("Audit", BuildAuditTab()));
-        _tabs.TabPages.Add(CreatePage("Dashboard", BuildDashboardTab()));
+        // Everyday tabs first, administration last.
+        _jobsPage = CreatePage("Jobs", BuildJobsTab());
+        _dashboardPage = CreatePage("Dashboard", BuildDashboardTab());
+        _historyPage = CreatePage("History", BuildHistoryTab());
+        _auditPage = CreatePage("Audit", BuildAuditTab());
+        _servicePage = CreatePage("Service", BuildServiceTab());
+        _settingsPage = CreatePage("Settings", BuildSettingsTab());
+        _tabs.TabPages.AddRange([_jobsPage, _dashboardPage, _historyPage, _auditPage, _servicePage, _settingsPage]);
         _tabs.SelectedIndexChanged += (_, _) => RefreshCurrentTab();
+        KeyPreview = true;
 
         var status = new StatusStrip();
         status.Items.Add(new ToolStripStatusLabel($"Data: {StorixPaths.DataDirectory}") { Spring = true, TextAlign = ContentAlignment.MiddleLeft });
@@ -87,6 +99,7 @@ internal sealed class MainForm : Form
                 ShowUpdate(_availableUpdate);
             }
         };
+        status.Items.Add(_notice);
         status.Items.Add(_updateStatus);
         status.Items.Add(_serviceStatus);
 
@@ -94,16 +107,23 @@ internal sealed class MainForm : Form
         Controls.Add(BuildMenu());
         Controls.Add(status);
 
-        _timer.Tick += (_, _) =>
+        _timer.Tick += async (_, _) =>
         {
             RefreshTray();
             if (Visible)
             {
+                await RefreshRunningAsync();
                 RefreshCurrentTab(silent: true);
             }
         };
+        _noticeTimer.Tick += (_, _) =>
+        {
+            _noticeTimer.Stop();
+            _notice.Text = string.Empty;
+        };
         Load += (_, _) =>
         {
+            RestoreLayout();
             RefreshJobs();
             LoadSettings();
             RefreshServiceStatus();
@@ -131,6 +151,7 @@ internal sealed class MainForm : Form
             }
         };
         FormClosed += (_, _) => _tray.Dispose();
+        FormClosing += (_, _) => SaveLayout();
     }
 
     private async Task CheckForUpdatesAsync(bool manual)
@@ -198,7 +219,7 @@ internal sealed class MainForm : Form
 
     private static TabPage CreatePage(string title, Control content)
     {
-        var page = new TabPage(title) { UseVisualStyleBackColor = true };
+        var page = new TabPage(title) { UseVisualStyleBackColor = true, Name = title };
         page.Controls.Add(content);
         return page;
     }
@@ -251,89 +272,247 @@ internal sealed class MainForm : Form
 
     // ---------------------------------------------------------------- Jobs
 
+    private readonly ToolStripTextBox _jobSearch = new() { AutoSize = false, Width = 200, ToolTipText = "Search jobs (Ctrl+F)" };
+    private readonly Label _jobsSummary = new() { Dock = DockStyle.Top, AutoSize = false, Height = 30, Padding = new Padding(8, 7, 8, 0) };
+    private readonly Panel _emptyState = new() { Dock = DockStyle.Fill, Visible = false };
+    private readonly Label _emptyText = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleCenter, Dock = DockStyle.Top, Height = 70 };
+    private readonly FlowLayoutPanel _emptyButtons = new() { AutoSize = true, Anchor = AnchorStyles.None, WrapContents = false };
+    private readonly ContextMenuStrip _jobMenu = new();
+    private readonly ContextMenuStrip _templateMenu = new();
+    private ToolStripButton _jobEdit = null!;
+    private ToolStripButton _jobRun = null!;
+    private ToolStripButton _jobPause = null!;
+    private ToolStripButton _jobCancel = null!;
+    private ToolStripButton _jobRestore = null!;
+    private ToolStripDropDownButton _jobMore = null!;
+    private Dictionary<Guid, NT.Storix.Core.Ipc.RunningJob> _running = [];
+
+    private static ToolStripButton ToolButton(string text, char glyph, Action action, string? tip = null) =>
+        new(text, Glyphs.Icon(glyph), (_, _) => action())
+        {
+            DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+            ToolTipText = tip ?? text,
+        };
+
     private Control BuildJobsTab()
     {
-        _jobs.Columns.Add("Name", 200);
-        _jobs.Columns.Add("Enabled", 65);
+        _jobs.Columns.Add("Name", 220);
+        _jobs.Columns.Add("Status", 170);
         _jobs.Columns.Add("Schedule", 190);
-        _jobs.Columns.Add("Source", 90);
-        _jobs.Columns.Add("Destinations", 180);
         _jobs.Columns.Add("Next run", 130);
         _jobs.Columns.Add("Last run", 130);
-        _jobs.Columns.Add("Last status", 130);
+        _jobs.Columns.Add("Destinations", 190);
+        _jobs.Columns.Add("Source", 100);
+        _jobs.SmallImageList = Glyphs.StateImages(LogicalToDeviceUnits(16));
+        _jobs.ShowItemToolTips = true;
         _jobs.DoubleClick += (_, _) => EditJob();
+        _jobs.SelectedIndexChanged += (_, _) => UpdateJobActions();
+        _jobs.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                EditJob();
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete)
+            {
+                DeleteJob();
+                e.Handled = true;
+            }
+        };
 
-        var toolbar = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden };
-        toolbar.Items.Add(new ToolStripButton("New", null, (_, _) => NewJob()));
-        var fromTemplate = new ToolStripDropDownButton("New from template");
+        // New: an empty job, or one of the templates.
         foreach (var template in NT.Storix.Core.Configuration.JobTemplate.All)
         {
-            fromTemplate.DropDownItems.Add(new ToolStripMenuItem(template.Name, null, (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
+            _templateMenu.Items.Add(new ToolStripMenuItem(template.Name, Glyphs.Icon(Glyphs.Template), (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
         }
 
-        toolbar.Items.Add(fromTemplate);
-        toolbar.Items.Add(new ToolStripButton("Edit", null, (_, _) => EditJob()));
-        toolbar.Items.Add(new ToolStripButton("Duplicate", null, (_, _) => DuplicateJob()));
-        toolbar.Items.Add(new ToolStripButton("Delete", null, (_, _) => DeleteJob()));
-        toolbar.Items.Add(new ToolStripSeparator());
-        toolbar.Items.Add(new ToolStripButton("Enable / Disable", null, (_, _) => ToggleJob()));
-        toolbar.Items.Add(new ToolStripButton("Run now", null, (_, _) => RunNow()));
-        toolbar.Items.Add(new ToolStripButton("Dry run", null, (_, _) => DryRunJob()));
-        toolbar.Items.Add(new ToolStripButton("Pause / Resume", null, (_, _) => TogglePause()));
-        toolbar.Items.Add(new ToolStripButton("Cancel run", null, (_, _) => CancelRun()));
-        toolbar.Items.Add(new ToolStripButton("Test restore", null, (_, _) => RequestDrill()));
-        toolbar.Items.Add(new ToolStripButton("Restore...", null, (_, _) => OpenRestore()));
-        toolbar.Items.Add(new ToolStripSeparator());
-        toolbar.Items.Add(new ToolStripButton("Refresh", null, (_, _) => RefreshJobs()));
+        var newButton = new ToolStripSplitButton("New", Glyphs.Icon(Glyphs.Add)) { ToolTipText = "New backup job (Ctrl+N)", DropDown = _templateMenu };
+        newButton.ButtonClick += (_, _) => NewJob();
+
+        _jobEdit = ToolButton("Edit", Glyphs.Edit, EditJob, "Edit the selected job (Enter)");
+        _jobRun = ToolButton("Run now", Glyphs.Play, RunNow, "Start a backup now (Ctrl+R)");
+        _jobPause = ToolButton("Pause", Glyphs.Pause, TogglePause);
+        _jobCancel = ToolButton("Cancel run", Glyphs.Stop, CancelRun);
+        _jobRestore = ToolButton("Restore...", Glyphs.History, OpenRestore, "Restore files from a backup of this job");
+
+        // Less frequent and destructive actions live in "More" (and in the right-click menu).
+        _jobMore = new ToolStripDropDownButton("More", Glyphs.Icon(Glyphs.More)) { DisplayStyle = ToolStripItemDisplayStyle.ImageAndText };
+        _jobMore.DropDownItems.Add("Duplicate", Glyphs.Icon(Glyphs.Copy), (_, _) => DuplicateJob());
+        _jobMore.DropDownItems.Add("Enable / Disable", Glyphs.Icon(Glyphs.Power), (_, _) => ToggleJob());
+        _jobMore.DropDownItems.Add("Dry run", Glyphs.Icon(Glyphs.Preview), (_, _) => DryRunJob());
+        _jobMore.DropDownItems.Add("Test restore", Glyphs.Icon(Glyphs.Health), (_, _) => RequestDrill());
+        _jobMore.DropDownItems.Add(new ToolStripSeparator());
+        _jobMore.DropDownItems.Add("Delete", Glyphs.Icon(Glyphs.Delete, color: Color.Firebrick), (_, _) => DeleteJob());
+
+        _jobSearch.TextChanged += (_, _) => RefreshJobs();
+        var toolbar = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(4, 2, 4, 2), ImageScalingSize = new Size(16, 16) };
+        toolbar.Items.AddRange([newButton, _jobEdit, new ToolStripSeparator(), _jobRun, _jobPause, _jobCancel, new ToolStripSeparator(), _jobRestore, _jobMore]);
+        toolbar.Items.Add(new ToolStripButton(null, Glyphs.Icon(Glyphs.Refresh), (_, _) => RefreshJobs()) { Alignment = ToolStripItemAlignment.Right, ToolTipText = "Refresh (F5)", DisplayStyle = ToolStripItemDisplayStyle.Image, Text = "Refresh" });
+        toolbar.Items.Add(new ToolStripControlHost(new Panel { Width = 4 }) { Alignment = ToolStripItemAlignment.Right });
+        _jobSearch.Alignment = ToolStripItemAlignment.Right;
+        _jobSearch.TextBox.PlaceholderText = "Search jobs";
+        toolbar.Items.Add(_jobSearch);
+
+        // Right-click menu with the same actions.
+        _jobMenu.Items.Add("Edit", Glyphs.Icon(Glyphs.Edit), (_, _) => EditJob());
+        _jobMenu.Items.Add("Run now", Glyphs.Icon(Glyphs.Play), (_, _) => RunNow());
+        _jobMenu.Items.Add("Pause / Resume", Glyphs.Icon(Glyphs.Pause), (_, _) => TogglePause());
+        _jobMenu.Items.Add("Cancel run", Glyphs.Icon(Glyphs.Stop), (_, _) => CancelRun());
+        _jobMenu.Items.Add(new ToolStripSeparator());
+        _jobMenu.Items.Add("Restore...", Glyphs.Icon(Glyphs.History), (_, _) => OpenRestore());
+        _jobMenu.Items.Add("Test restore", Glyphs.Icon(Glyphs.Health), (_, _) => RequestDrill());
+        _jobMenu.Items.Add("Dry run", Glyphs.Icon(Glyphs.Preview), (_, _) => DryRunJob());
+        _jobMenu.Items.Add("History", Glyphs.Icon(Glyphs.History), (_, _) => ShowHistoryOf(SelectedJob));
+        _jobMenu.Items.Add(new ToolStripSeparator());
+        _jobMenu.Items.Add("Duplicate", Glyphs.Icon(Glyphs.Copy), (_, _) => DuplicateJob());
+        _jobMenu.Items.Add("Enable / Disable", Glyphs.Icon(Glyphs.Power), (_, _) => ToggleJob());
+        _jobMenu.Items.Add("Delete", Glyphs.Icon(Glyphs.Delete, color: Color.Firebrick), (_, _) => DeleteJob());
+        _jobMenu.Opening += (_, e) => e.Cancel = SelectedJob is null;
+        _jobs.ContextMenuStrip = _jobMenu;
+
+        BuildEmptyState();
 
         var panel = new Panel { Dock = DockStyle.Fill };
         panel.Controls.Add(_jobs);
+        panel.Controls.Add(_emptyState);
+        panel.Controls.Add(_jobsSummary);
         panel.Controls.Add(toolbar);
+        UpdateJobActions();
         return panel;
+    }
+
+    /// <summary>What to do when there is nothing in the list: create, start from a template or import.</summary>
+    private void BuildEmptyState()
+    {
+        _emptyText.Font = new Font(Font.FontFamily, Font.Size + 3);
+        var create = Ui.Button("Create a backup job", (_, _) => NewJob(), 190);
+        var template = Ui.Button("Start from a template ▾", (_, _) => { }, 190);
+        template.Click += (_, _) => _templateMenu.Show(template, new Point(0, template.Height));
+        var import = Ui.Button("Import configuration...", (_, _) => ImportConfiguration(), 190);
+        _emptyButtons.Controls.AddRange([create, template, import]);
+
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
+        _emptyText.Dock = DockStyle.Fill;
+        layout.Controls.Add(_emptyText, 0, 1);
+        layout.Controls.Add(_emptyButtons, 0, 2);
+        _emptyState.Controls.Add(layout);
     }
 
     private BackupJob? SelectedJob => _jobs.SelectedItems.Count == 0 ? null : (BackupJob)_jobs.SelectedItems[0].Tag!;
 
+    private JobState StateOf(BackupJob job, BackupRun? last) =>
+        JobStates.Of(job, last, _running.ContainsKey(job.Id) || last?.Status == RunStatus.Running, _services.Runs.IsPaused(job.Id));
+
+    /// <summary>Enables only the actions that make sense for the selected job (error prevention).</summary>
+    private void UpdateJobActions()
+    {
+        var job = SelectedJob;
+        var state = job is null ? (JobState?)null : StateOf(job, _services.Runs.GetLast(job.Id));
+        var running = state is JobState.Running or JobState.Paused;
+        _jobEdit.Enabled = _jobRestore.Enabled = _jobMore.Enabled = job is not null;
+        _jobRun.Enabled = job is not null && !running;
+        _jobCancel.Enabled = running;
+        _jobPause.Enabled = job is not null;
+        _jobPause.Text = Localizer.T(state == JobState.Paused || (job is not null && _services.Runs.IsPaused(job.Id)) ? "Resume" : "Pause");
+        _jobPause.Image = Glyphs.Icon(_jobPause.Text == Localizer.T("Resume") ? Glyphs.Play : Glyphs.Pause);
+        foreach (ToolStripItem item in _jobMenu.Items)
+        {
+            if (item.Text == Localizer.T("Cancel run"))
+            {
+                item.Enabled = running;
+            }
+            else if (item.Text == Localizer.T("Run now"))
+            {
+                item.Enabled = !running;
+            }
+        }
+    }
+
+    /// <summary>Running jobs as reported live by the service (local API); empty when it is not reachable.</summary>
+    private async Task RefreshRunningAsync()
+    {
+        var response = await NT.Storix.Core.Ipc.StorixPipe.SendAsync(new NT.Storix.Core.Ipc.PipeRequest { Command = "status" }, TimeSpan.FromSeconds(1));
+        _running = response?.Running.ToDictionary(r => r.JobId) ?? [];
+    }
+
     private void RefreshJobs()
     {
         var selectedId = SelectedJob?.Id;
-        _jobList = _services.Jobs.GetAll().ToList();
+        var topIndex = _jobs.TopItem?.Index ?? 0;
+        _jobList = _services.Jobs.GetAll().OrderBy(j => j.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var now = DateTimeOffset.UtcNow;
+        var search = _jobSearch.Text.Trim();
+        var shown = _jobList.Where(j => search.Length == 0
+                                        || j.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                                        || (j.Description?.Contains(search, StringComparison.CurrentCultureIgnoreCase) ?? false)
+                                        || j.Destinations.Any(d => d.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)))
+            .ToHashSet();
 
+        var states = new Dictionary<Guid, JobState>();
+        (BackupJob Job, DateTimeOffset At)? nextRun = null;
         _jobs.BeginUpdate();
         _jobs.Items.Clear();
         foreach (var job in _jobList)
         {
             var last = _services.Runs.GetLast(job.Id);
+            var state = StateOf(job, last);
+            states[job.Id] = state;
             DateTimeOffset? next = null;
             try
             {
-                next = job.Enabled ? ScheduleCalculator.GetNextOccurrence(job.Schedule, DateTimeOffset.UtcNow) : null;
+                next = job.Enabled ? ScheduleCalculator.GetNextOccurrence(job.Schedule, now) : null;
             }
             catch
             {
                 // Invalid schedule, shown as empty.
             }
 
+            if (next is { } n && (nextRun is null || n < nextRun.Value.At))
+            {
+                nextRun = (job, n);
+            }
+
+            if (!shown.Contains(job))
+            {
+                continue;
+            }
+
+            var status = Localizer.T(JobStates.Describe(state));
+            if (_running.TryGetValue(job.Id, out var running))
+            {
+                status += " · " + TimeText.Elapsed(now - running.StartedAt);
+            }
+            else if (state == JobState.Running && last is not null)
+            {
+                status += " · " + TimeText.Elapsed(now - last.StartedAt);
+            }
+
             var item = new ListViewItem(
             [
                 job.Name,
-                job.Enabled ? "Yes" : "No",
+                status,
                 ScheduleCalculator.Describe(job.Schedule),
-                job.Source.Kind.ToString(),
+                next is null ? "-" : TimeText.Relative(next.Value, now, Localizer.IsPersian),
+                last is null ? "-" : TimeText.Relative(last.StartedAt, now, Localizer.IsPersian),
                 string.Join(", ", job.Destinations.Where(d => d.Enabled).Select(d => d.Name)),
-                next?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-",
-                last?.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-",
-                (_services.Runs.IsPaused(job.Id) ? "Paused / " : string.Empty) + (last?.Status.ToString() ?? "-"),
+                job.Source.Kind.ToString(),
             ])
             {
                 Tag = job,
-                ForeColor = job.Enabled ? SystemColors.WindowText : SystemColors.GrayText,
+                ImageKey = state.ToString(),
+                UseItemStyleForSubItems = false,
+                ToolTipText = last?.Message ?? job.Description ?? string.Empty,
             };
 
-            if (last is not null)
+            item.SubItems[1].ForeColor = Glyphs.StateColor(state);
+            if (!job.Enabled)
             {
-                item.UseItemStyleForSubItems = false;
-                item.SubItems[7].ForeColor = StatusColor(last.Status);
+                item.ForeColor = SystemColors.GrayText;
             }
 
             item.Selected = job.Id == selectedId;
@@ -341,6 +520,56 @@ internal sealed class MainForm : Form
         }
 
         _jobs.EndUpdate();
+
+        // Keep the scroll position across the periodic refresh.
+        if (_jobs.Items.Count > 0)
+        {
+            _jobs.TopItem = _jobs.Items[Math.Min(topIndex, _jobs.Items.Count - 1)];
+        }
+
+        UpdateJobsSummary(states, nextRun);
+        _emptyText.Text = Localizer.T(_jobList.Count == 0
+            ? "No backup jobs yet. Create your first one; it only takes a minute."
+            : "No job matches the search.");
+        _emptyState.Visible = shown.Count == 0;
+        _jobs.Visible = shown.Count > 0;
+        _emptyButtons.Visible = _jobList.Count == 0;
+        UpdateJobActions();
+    }
+
+    /// <summary>One line with what matters: how many jobs are fine, failing or running, and what runs next.</summary>
+    private void UpdateJobsSummary(Dictionary<Guid, JobState> states, (BackupJob Job, DateTimeOffset At)? next)
+    {
+        var failed = states.Values.Count(s => s is JobState.Failed or JobState.Warning);
+        var running = states.Values.Count(s => s is JobState.Running or JobState.Paused);
+        var ok = states.Values.Count(s => s == JobState.Ok);
+        var parts = new List<string> { Localizer.F("{0} job(s)", states.Count), Localizer.F("{0} OK", ok) };
+        if (failed > 0)
+        {
+            parts.Add(Localizer.F("{0} need attention", failed));
+        }
+
+        if (running > 0)
+        {
+            parts.Add(Localizer.F("{0} running", running));
+        }
+
+        if (next is { } n)
+        {
+            parts.Add(Localizer.F("next: {0} {1}", n.Job.Name, TimeText.Relative(n.At, DateTimeOffset.UtcNow, Localizer.IsPersian)));
+        }
+
+        _jobsSummary.Text = string.Join("   ·   ", parts);
+        _jobsSummary.ForeColor = failed > 0 ? Glyphs.StateColor(JobState.Failed) : running > 0 ? Glyphs.StateColor(JobState.Running) : SystemColors.ControlText;
+    }
+
+    private void ShowHistoryOf(BackupJob? job)
+    {
+        _tabs.SelectedTab = _historyPage;
+        if (job is not null)
+        {
+            _historyFilter.SelectedItem = _historyFilter.Items.OfType<JobFilterItem>().FirstOrDefault(i => i.Id == job.Id) ?? _historyFilter.SelectedItem;
+        }
     }
 
     private void ShowWelcomeIfFirstRun()
@@ -445,6 +674,7 @@ internal sealed class MainForm : Form
             job.Enabled = !job.Enabled;
             _services.Jobs.Save(job);
             _services.Audit.Add(job.Enabled ? "job.enable" : "job.disable", job.Name);
+            ShowNotice(job.Enabled ? $"'{job.Name}' enabled." : $"'{job.Name}' disabled: it no longer runs on schedule.");
             RefreshJobs();
         }
     }
@@ -460,15 +690,15 @@ internal sealed class MainForm : Form
         _services.Audit.Add("job.run", job.Name);
         if (immediate)
         {
-            Dialogs.Info(this, $"'{job.Name}' started. Follow it in the History tab.");
+            ShowNotice($"'{job.Name}' started.");
         }
         else if (WindowsServiceManager.GetStatus() != ServiceControllerStatus.Running)
         {
-            Dialogs.Info(this, "The run was queued, but the Storix service is not running. It will start as soon as the service starts (see the Service tab).");
+            ShowNotice("Queued, but the Storix service is not running: start it on the Service tab.", warning: true);
         }
         else
         {
-            Dialogs.Info(this, $"'{job.Name}' was queued and will start within a few seconds. Follow it in the History tab.");
+            ShowNotice($"'{job.Name}' was queued and starts within a few seconds.");
         }
 
         RefreshJobs();
@@ -516,9 +746,14 @@ internal sealed class MainForm : Form
 
         await ServiceRequests.SendAsync(_services.Runs, "drill", job.Id);
         _services.Audit.Add("job.drill", job.Name);
-        Dialogs.Info(this, WindowsServiceManager.GetStatus() == ServiceControllerStatus.Running
-            ? $"A restore drill of '{job.Name}' was queued. The result appears in the History tab."
-            : "The restore drill was queued, but the Storix service is not running.");
+        if (WindowsServiceManager.GetStatus() == ServiceControllerStatus.Running)
+        {
+            ShowNotice($"Restore drill of '{job.Name}' started; the result appears in History.");
+        }
+        else
+        {
+            ShowNotice("Queued, but the Storix service is not running: start it on the Service tab.", warning: true);
+        }
     }
 
     private void TogglePause()
@@ -531,9 +766,7 @@ internal sealed class MainForm : Form
         var paused = _services.Runs.IsPaused(job.Id);
         _services.Runs.SetPaused(job.Id, !paused);
         _services.Audit.Add(paused ? "job.resume" : "job.pause", job.Name);
-        Dialogs.Info(this, paused
-            ? $"'{job.Name}' resumed."
-            : $"'{job.Name}' is paused. A running backup stops at its next step (before archiving, encrypting or uploading the next volume) until you resume it.");
+        ShowNotice(paused ? $"'{job.Name}' resumed." : $"'{job.Name}' paused: a running backup waits at its next step until you resume it.");
         RefreshJobs();
     }
 
@@ -546,7 +779,7 @@ internal sealed class MainForm : Form
 
         if (_services.Runs.GetLast(job.Id)?.Status != RunStatus.Running)
         {
-            Dialogs.Info(this, $"'{job.Name}' is not running.");
+            ShowNotice($"'{job.Name}' is not running.", warning: true);
             return;
         }
 
@@ -554,7 +787,7 @@ internal sealed class MainForm : Form
         {
             var immediate = await ServiceRequests.SendAsync(_services.Runs, "cancel", job.Id);
             _services.Audit.Add("job.cancel", job.Name);
-            Dialogs.Info(this, immediate ? "Cancellation sent. The backup stops at its next step." : "Cancellation requested. The service stops the backup within a few seconds.");
+            ShowNotice(immediate ? "Cancellation sent: the backup stops at its next step." : "Cancellation requested: the service stops the backup within a few seconds.");
         }
     }
 
@@ -577,11 +810,18 @@ internal sealed class MainForm : Form
         _history.Columns.Add("File", 230);
         _history.Columns.Add("Message", 400);
         _history.SelectedIndexChanged += (_, _) => ShowRunLog();
+        _history.SmallImageList = Glyphs.StateImages(LogicalToDeviceUnits(16));
         _historyFilter.SelectedIndexChanged += (_, _) => RefreshHistory();
+        _historyStatus.Items.AddRange(["All runs", "Failures and warnings", "Successful"]);
+        _historyStatus.Format += (_, e) => e.Value = Localizer.T((string)e.ListItem!);
+        _historyStatus.SelectedIndex = 0;
+        _historyStatus.SelectedIndexChanged += (_, _) => RefreshHistory();
 
         var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(4) };
         top.Controls.Add(new Label { Text = "Job:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) });
         top.Controls.Add(_historyFilter);
+        top.Controls.Add(new Label { Text = "Show:", AutoSize = true, Margin = new Padding(12, 8, 3, 3) });
+        top.Controls.Add(_historyStatus);
         top.Controls.Add(Ui.Button("Refresh", (_, _) => RefreshHistory()));
 
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 300 };
@@ -615,6 +855,12 @@ internal sealed class MainForm : Form
         _history.Items.Clear();
         foreach (var run in _services.Runs.GetRecent(jobId, 500))
         {
+            var failure = run.Status is RunStatus.Failed or RunStatus.Interrupted or RunStatus.PartiallySucceeded or RunStatus.Cancelled;
+            if ((_historyStatus.SelectedIndex == 1 && !failure) || (_historyStatus.SelectedIndex == 2 && run.Status != RunStatus.Succeeded))
+            {
+                continue;
+            }
+
             var item = new ListViewItem(
             [
                 run.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
@@ -630,6 +876,13 @@ internal sealed class MainForm : Form
                 Tag = run,
                 UseItemStyleForSubItems = false,
                 Selected = run.Id == selectedId,
+                ImageKey = (run.Status switch
+                {
+                    RunStatus.Succeeded => JobState.Ok,
+                    RunStatus.Running => JobState.Running,
+                    RunStatus.PartiallySucceeded or RunStatus.Cancelled => JobState.Warning,
+                    _ => JobState.Failed,
+                }).ToString(),
             };
             item.SubItems[3].ForeColor = StatusColor(run.Status);
             _history.Items.Add(item);
@@ -984,7 +1237,10 @@ internal sealed class MainForm : Form
         };
         settings.CheckForUpdates = _checkUpdates.Checked;
         settings.IncludePrereleaseUpdates = _prereleaseUpdates.Checked;
-        new UiPreferences { Language = (UiLanguage)_uiLanguage.SelectedItem!, Theme = (UiTheme)_uiTheme.SelectedItem! }.Save();
+        var preferences = UiPreferences.Load();
+        preferences.Language = (UiLanguage)_uiLanguage.SelectedItem!;
+        preferences.Theme = (UiTheme)_uiTheme.SelectedItem!;
+        preferences.Save();
         settings.Observability = new ObservabilitySettings
         {
             MetricsEnabled = _metricsEnabled.Checked,
@@ -995,7 +1251,7 @@ internal sealed class MainForm : Form
 
         _services.Audit.Add("settings.update", "settings", AuditDiff.Describe(_services.Settings.Get(), settings));
         _services.Settings.Save(settings);
-        Dialogs.Info(this, "Settings saved.");
+        ShowNotice("Settings saved.");
     }
 
     // ---------------------------------------------------------------- Service
@@ -1053,7 +1309,7 @@ internal sealed class MainForm : Form
         {
             await Task.Run(action);
             _services.Audit.Add("service." + verb.Split(' ')[0], StorixPaths.ServiceName);
-            Dialogs.Info(this, $"The service was {verb}.");
+            ShowNotice($"The service was {verb}.");
         }
         catch (Exception ex)
         {
@@ -1120,7 +1376,7 @@ internal sealed class MainForm : Form
             var json = ConfigurationPorter.Export(_services.Jobs.GetAll(), _services.Settings.Get(), passphrase);
             File.WriteAllText(save.FileName, json);
             _services.Audit.Add("config.export", save.FileName, passphrase is null ? "without secrets" : "with passphrase-protected secrets");
-            Dialogs.Info(this, $"Exported {_jobList.Count} job(s).");
+            ShowNotice($"Exported {_jobList.Count} job(s).");
         }
         catch (Exception ex)
         {
@@ -1190,31 +1446,130 @@ internal sealed class MainForm : Form
         try
         {
             RefreshServiceStatus();
-            switch (_tabs.SelectedIndex)
+            var page = _tabs.SelectedTab;
+            if (page == _jobsPage)
             {
-                case 0:
-                    // Keep the selection stable while the user is working.
-                    if (!silent || !_jobs.Focused)
-                    {
-                        RefreshJobs();
-                    }
-
-                    break;
-                case 1:
-                    RefreshHistory();
-                    break;
-                case 4 when !silent:
-                    RefreshAudit();
-                    break;
-                case 5:
-                    RefreshDashboard();
-                    break;
+                // Keep the selection stable while the user is working in the list.
+                if (!silent || !_jobs.Focused || _jobs.SelectedItems.Count == 0)
+                {
+                    RefreshJobs();
+                }
+            }
+            else if (page == _historyPage)
+            {
+                RefreshHistory();
+            }
+            else if (page == _auditPage && !silent)
+            {
+                RefreshAudit();
+            }
+            else if (page == _dashboardPage)
+            {
+                RefreshDashboard();
             }
         }
         catch (Exception) when (silent)
         {
             // Database busy: try again on the next tick.
         }
+    }
+
+    private IEnumerable<(string Name, ListView List)> Lists =>
+        [("jobs", _jobs), ("history", _history), ("audit", _audit), ("dashboardJobs", _dashboardJobs), ("dashboardDestinations", _dashboardDestinations)];
+
+    /// <summary>Restores the window, tab and column widths of the last session (per Windows user).</summary>
+    private void RestoreLayout()
+    {
+        var preferences = UiPreferences.Load();
+        if (preferences.WindowBounds is [var x, var y, var width, var height])
+        {
+            var bounds = new Rectangle(x, y, width, height);
+            if (Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(bounds)))
+            {
+                StartPosition = FormStartPosition.Manual;
+                Bounds = bounds;
+            }
+        }
+
+        if (preferences.Maximized)
+        {
+            WindowState = FormWindowState.Maximized;
+        }
+
+        if (_tabs.TabPages.Cast<TabPage>().FirstOrDefault(p => p.Name == preferences.Tab) is { } tab)
+        {
+            _tabs.SelectedTab = tab;
+        }
+
+        foreach (var (name, list) in Lists)
+        {
+            if (preferences.Columns.TryGetValue(name, out var widths) && widths.Length == list.Columns.Count)
+            {
+                for (var i = 0; i < widths.Length; i++)
+                {
+                    list.Columns[i].Width = Math.Clamp(widths[i], 30, 2000);
+                }
+            }
+        }
+    }
+
+    private void SaveLayout()
+    {
+        try
+        {
+            var preferences = UiPreferences.Load();
+            var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            preferences.WindowBounds = [bounds.X, bounds.Y, bounds.Width, bounds.Height];
+            preferences.Maximized = WindowState == FormWindowState.Maximized;
+            preferences.Tab = _tabs.SelectedTab?.Name;
+            foreach (var (name, list) in Lists)
+            {
+                preferences.Columns[name] = list.Columns.Cast<ColumnHeader>().Select(c => c.Width).ToArray();
+            }
+
+            preferences.Save();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Layout is a convenience: never block closing.
+        }
+    }
+
+    /// <summary>A short message in the status bar that disappears by itself (instead of a message box).</summary>
+    private void ShowNotice(string message, bool warning = false)
+    {
+        _notice.Text = (warning ? "⚠ " : "✓ ") + Localizer.T(message);
+        _notice.ForeColor = warning ? Glyphs.StateColor(JobState.Warning) : Glyphs.StateColor(JobState.Ok);
+        _noticeTimer.Stop();
+        _noticeTimer.Start();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        switch (keyData)
+        {
+            case Keys.Control | Keys.N:
+                NewJob();
+                return true;
+            case Keys.Control | Keys.R when SelectedJob is not null:
+                RunNow();
+                return true;
+            case Keys.Control | Keys.D when SelectedJob is not null:
+                DuplicateJob();
+                return true;
+            case Keys.Control | Keys.F:
+                _tabs.SelectedTab = _jobsPage;
+                _jobSearch.Focus();
+                return true;
+            case Keys.F5:
+                RefreshCurrentTab();
+                return true;
+            case Keys.Escape when _jobSearch.Focused && _jobSearch.Text.Length > 0:
+                _jobSearch.Clear();
+                return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private static Color StatusColor(RunStatus status) => status switch

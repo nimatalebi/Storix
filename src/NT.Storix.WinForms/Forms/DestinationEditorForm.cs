@@ -17,6 +17,27 @@ internal sealed class DestinationEditorForm : Form
     private readonly Button _googleSignIn;
     private readonly ComboBox _preset = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220, Anchor = AnchorStyles.Left };
     private readonly Label _presetHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(480, 0) };
+    private readonly GuidePanel _guide = new() { Dock = DockStyle.Fill };
+    private readonly Label _result = new() { AutoSize = true, MaximumSize = new Size(520, 0), Padding = new Padding(0, 4, 0, 0) };
+    private readonly Button _browseKey;
+
+    /// <summary>Friendly names for the type list.</summary>
+    private static string KindName(DestinationKind kind) => kind switch
+    {
+        DestinationKind.LocalFolder => "Local folder / NAS / network share",
+        DestinationKind.Ftp => "FTP / FTPS",
+        DestinationKind.Sftp => "SFTP (SSH)",
+        DestinationKind.GoogleDrive => "Google Drive",
+        DestinationKind.S3 => "Amazon S3 / S3-compatible (R2, Wasabi, B2, MinIO, Arvan)",
+        DestinationKind.AzureBlob => "Azure Blob Storage",
+        DestinationKind.WebDav => "WebDAV (Nextcloud, ownCloud, NAS)",
+        DestinationKind.Dropbox => "Dropbox",
+        DestinationKind.OneDrive => "OneDrive / SharePoint",
+        DestinationKind.Rclone => "rclone (40+ providers)",
+        DestinationKind.Telegram => "Telegram / Bale channel",
+        DestinationKind.Plugin => "Plugin",
+        _ => kind.ToString(),
+    };
 
     public DestinationEditorForm(DestinationDefinition destination, IDestinationFactory factory)
     {
@@ -27,10 +48,12 @@ internal sealed class DestinationEditorForm : Form
         Text = "Destination";
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
-        ClientSize = new Size(560, 560);
-        MinimumSize = new Size(480, 420);
+        ClientSize = new Size(1040, 640);
+        MinimumSize = new Size(820, 480);
 
         _kind = Ui.EnumCombo(Destination.Kind);
+        _kind.Width = 360;
+        _kind.Format += (_, e) => e.Value = e.ListItem is DestinationKind k ? Localizer.T(KindName(k)) : e.Value;
         _name.Text = Destination.Name;
         _enabled.Checked = Destination.Enabled;
         _limit.Value = Math.Clamp(Destination.MaxUploadKBps, 0, 10_000_000);
@@ -55,8 +78,12 @@ internal sealed class DestinationEditorForm : Form
             UpdatePresetVisibility();
         };
 
+        // The Google Drive guide depends on the sign-in mode.
+        _grid.PropertyValueChanged += (_, _) => UpdatePresetVisibility();
+
         _test = Ui.Button("Test connection", OnTest, 130);
-        _googleSignIn = Ui.Button("Sign in...", OnSignIn, 130);
+        _googleSignIn = Ui.Button("Sign in...", OnSignIn, 170);
+        _browseKey = Ui.Button("Choose key file...", OnBrowseKey, 150);
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 90, Height = 28 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 28 };
 
@@ -68,12 +95,24 @@ internal sealed class DestinationEditorForm : Form
         grid.Row("S3 provider", _preset);
         grid.Row(null, _presetHint);
         grid.Row(null, _grid, height: 330);
-        grid.Row(null, Ui.Buttons(_googleSignIn, _test, ok, cancel));
+        grid.Row(null, Ui.Buttons(_googleSignIn, _browseKey, _test));
+        grid.Row(null, _result);
         grid.Fill();
+
+        // Settings on the left, the setup guide for the chosen type on the right.
+        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel2 };
+        split.Panel1.Controls.Add(grid);
+        split.Panel2.Controls.Add(_guide);
+        split.Panel2.Padding = new Padding(0, 10, 10, 10);
+        Load += (_, _) => split.SplitterDistance = Math.Max(420, ClientSize.Width - 430);
+
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, Height = 44, Padding = new Padding(8) };
+        buttons.Controls.AddRange([cancel, ok]);
 
         AcceptButton = ok;
         CancelButton = cancel;
-        Controls.Add(grid);
+        Controls.Add(split);
+        Controls.Add(buttons);
         UpdatePresetVisibility();
     }
 
@@ -107,7 +146,7 @@ internal sealed class DestinationEditorForm : Form
     {
         if (clientId is null)
         {
-            Dialogs.Error(this, missingMessage);
+            ShowResult(false, missingMessage);
             return;
         }
 
@@ -119,11 +158,11 @@ internal sealed class DestinationEditorForm : Form
             var tokens = await signIn(timeout.Token);
             store(tokens.RefreshToken ?? throw new InvalidOperationException("The provider did not return a refresh token."));
             _grid.Refresh();
-            Dialogs.Info(this, "Connected. Use 'Test connection' to check the folder.");
+            ShowResult(true, "Connected. Use 'Test connection' to check the folder.");
         }
         catch (Exception ex)
         {
-            Dialogs.Error(this, $"Sign-in failed:\n\n{ex.Message}");
+            ShowResult(false, $"Sign-in failed: {ex.Message}");
         }
         finally
         {
@@ -137,7 +176,7 @@ internal sealed class DestinationEditorForm : Form
         var drive = Destination.GoogleDrive;
         if (string.IsNullOrWhiteSpace(drive.OAuthClientId) || string.IsNullOrWhiteSpace(drive.OAuthClientSecret))
         {
-            Dialogs.Error(this, "Enter the OAuth client id and client secret first.\n\nGoogle Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID → Desktop app (enable the Google Drive API).");
+            ShowResult(false, "Enter the OAuth client id and client secret first (see the setup guide on the right, steps 1-5).");
             return;
         }
 
@@ -151,11 +190,11 @@ internal sealed class DestinationEditorForm : Form
             drive.RefreshToken = token;
             drive.SignedInAs = email;
             _grid.Refresh();
-            Dialogs.Info(this, $"Signed in as {email ?? "your Google account"}.");
+            ShowResult(true, $"Signed in as {email ?? "your Google account"}.");
         }
         catch (Exception ex)
         {
-            Dialogs.Error(this, $"Google sign-in failed:\n\n{ex.Message}");
+            ShowResult(false, $"Google sign-in failed: {ex.Message}");
         }
         finally
         {
@@ -167,6 +206,15 @@ internal sealed class DestinationEditorForm : Form
     private void UpdatePresetVisibility()
     {
         _googleSignIn.Visible = Destination.Kind is DestinationKind.GoogleDrive or DestinationKind.Dropbox or DestinationKind.OneDrive;
+        _googleSignIn.Text = Localizer.T(Destination.Kind switch
+        {
+            DestinationKind.GoogleDrive => "Sign in with Google...",
+            DestinationKind.Dropbox => "Sign in with Dropbox...",
+            _ => "Sign in with Microsoft...",
+        });
+        _browseKey.Visible = Destination.Kind == DestinationKind.Sftp
+                             || (Destination.Kind == DestinationKind.GoogleDrive && Destination.GoogleDrive.AuthMode == GoogleDriveAuthMode.ServiceAccount);
+        _guide.ShowGuide(DestinationGuides.For(Destination));
         var visible = Destination.Kind == DestinationKind.S3;
         _preset.Visible = _presetHint.Visible = visible;
         if (_preset.Parent is TableLayoutPanel table && table.GetControlFromPosition(0, table.GetRow(_preset)) is { } label)
@@ -175,13 +223,45 @@ internal sealed class DestinationEditorForm : Form
         }
     }
 
+    private void OnBrowseKey(object? sender, EventArgs e)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = Localizer.T("Choose key file..."),
+            Filter = Destination.Kind == DestinationKind.GoogleDrive ? "Service account key (*.json)|*.json|All files (*.*)|*.*" : "Private key|*.*",
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (Destination.Kind == DestinationKind.GoogleDrive)
+        {
+            Destination.GoogleDrive.ServiceAccountKeyPath = dialog.FileName;
+        }
+        else
+        {
+            Destination.Sftp.PrivateKeyPath = dialog.FileName;
+        }
+
+        _grid.Refresh();
+    }
+
+    /// <summary>Shows the result of a test or sign-in under the buttons instead of a message box.</summary>
+    private void ShowResult(bool success, string message)
+    {
+        _result.ForeColor = success ? Color.ForestGreen : Color.Firebrick;
+        _result.Text = (success ? "✓ " : "✗ ") + Localizer.T(message);
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (DialogResult == DialogResult.OK)
         {
             if (string.IsNullOrWhiteSpace(_name.Text))
             {
-                Dialogs.Error(this, "Enter a name.");
+                ShowResult(false, "Enter a name.");
+            _name.Focus();
                 e.Cancel = true;
                 return;
             }
@@ -205,6 +285,8 @@ internal sealed class DestinationEditorForm : Form
         Apply();
         _test.Enabled = false;
         UseWaitCursor = true;
+        _result.ForeColor = SystemColors.GrayText;
+        _result.Text = Localizer.T("Testing the connection...");
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
@@ -214,11 +296,11 @@ internal sealed class DestinationEditorForm : Form
                 await destination.TestAsync(timeout.Token);
                 await destination.ListAsync(timeout.Token);
             });
-            Dialogs.Info(this, "Connection succeeded.");
+            ShowResult(true, "Connection succeeded.");
         }
         catch (Exception ex)
         {
-            Dialogs.Error(this, $"Connection failed:\n\n{ex.Message}");
+            ShowResult(false, $"Connection failed: {ex.Message}");
         }
         finally
         {

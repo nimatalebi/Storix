@@ -24,6 +24,16 @@ internal sealed class UiPreferences
 
     public UiTheme Theme { get; set; }
 
+    /// <summary>Main window position and size (x, y, width, height), restored when still on a screen.</summary>
+    public int[]? WindowBounds { get; set; }
+
+    public bool Maximized { get; set; }
+
+    public string? Tab { get; set; }
+
+    /// <summary>Column widths per list, keyed by list name.</summary>
+    public Dictionary<string, int[]> Columns { get; set; } = [];
+
     private static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Storix", "ui.json");
 
     public static UiPreferences Load()
@@ -72,9 +82,16 @@ internal static class Localizer
 #pragma warning restore WFO5001
     }
 
+    /// <summary>Switches the language without touching the theme (tests).</summary>
+    internal static void SetLanguage(bool persian) => IsPersian = persian;
+
     /// <summary>The Persian text for <paramref name="english"/> when the UI is Persian, else the text itself.</summary>
     public static string T(string english) =>
         IsPersian && TranslationsFa.Strings.TryGetValue(english, out var persian) ? persian : english;
+
+    /// <summary>Translates a format string, then fills it in: F("{0} job(s)", 3).</summary>
+    public static string F(string format, params object?[] args) =>
+        string.Format(CultureInfo.CurrentCulture, T(format), args);
 
     public static void Attach(Form form)
     {

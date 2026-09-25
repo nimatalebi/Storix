@@ -123,7 +123,7 @@ internal sealed class JobEditorForm : Form
         _sqlPanel = BuildSqlPanel();
         _mongoPanel = BuildMongoPanel();
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var tabs = _tabs;
         tabs.TabPages.Add(Page("General", BuildGeneralTab()));
         tabs.TabPages.Add(Page("Schedule", BuildScheduleTab()));
         tabs.TabPages.Add(Page("Source", BuildSourceTab()));
@@ -140,6 +140,7 @@ internal sealed class JobEditorForm : Form
         buttons.Controls.AddRange([cancel, ok]);
 
         Controls.Add(tabs);
+        Controls.Add(_errors);
         Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
@@ -149,13 +150,50 @@ internal sealed class JobEditorForm : Form
 
     public BackupJob Job { get; }
 
+    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
+
+    /// <summary>Validation problems, shown inside the editor next to the settings instead of in a message box.</summary>
+    private readonly Label _errors = new()
+    {
+        Dock = DockStyle.Top,
+        AutoSize = true,
+        Visible = false,
+        Padding = new Padding(10, 8, 10, 8),
+        ForeColor = Color.White,
+        BackColor = Color.FromArgb(0xC4, 0x2B, 0x1C),
+    };
+
+    /// <summary>Shows the problems and opens the tab of the first one.</summary>
+    private void ShowErrors(IReadOnlyList<string> errors)
+    {
+        _errors.Text = Localizer.T("Please fix the following:") + Environment.NewLine + string.Join(Environment.NewLine, errors.Select(e => "• " + Localizer.T(e)));
+        _errors.MaximumSize = new Size(ClientSize.Width, 0);
+        _errors.Visible = true;
+        var tab = TabFor(errors[0]);
+        if (_tabs.TabPages.Cast<TabPage>().FirstOrDefault(p => p.Name == tab) is { } page)
+        {
+            _tabs.SelectedTab = page;
+        }
+    }
+
+    private static string TabFor(string error) => error switch
+    {
+        _ when error.StartsWith("Name", StringComparison.Ordinal) => "General",
+        _ when error.StartsWith("Schedule", StringComparison.Ordinal) || error.Contains("window", StringComparison.OrdinalIgnoreCase) => "Schedule",
+        _ when error.Contains("encrypt", StringComparison.OrdinalIgnoreCase) || error.Contains("password", StringComparison.OrdinalIgnoreCase)
+               || error.Contains("public key", StringComparison.OrdinalIgnoreCase) || error.Contains("Dedup", StringComparison.OrdinalIgnoreCase) => "Processing",
+        _ when error.Contains("destination", StringComparison.OrdinalIgnoreCase) || error.Contains(": ", StringComparison.Ordinal) => "Destinations",
+        _ => "Source",
+    };
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (DialogResult == DialogResult.OK)
         {
             if (_encrypt.Checked && (EncryptionMode)_encryptionMode.SelectedItem! == EncryptionMode.Password && _password.Text != _passwordConfirm.Text)
             {
-                Dialogs.Error(this, "The encryption passwords do not match.");
+                ShowErrors(["The encryption passwords do not match."]);
+                _passwordConfirm.Focus();
                 e.Cancel = true;
                 return;
             }
@@ -172,10 +210,12 @@ internal sealed class JobEditorForm : Form
             var errors = BackupJobRunner.GetValidationErrors(Job);
             if (errors.Count > 0)
             {
-                Dialogs.Error(this, "Please fix the following:\n\n- " + string.Join("\n- ", errors));
+                ShowErrors(errors);
                 e.Cancel = true;
                 return;
             }
+
+            _errors.Visible = false;
         }
 
         base.OnFormClosing(e);
@@ -183,7 +223,7 @@ internal sealed class JobEditorForm : Form
 
     private static TabPage Page(string title, Control content)
     {
-        var page = new TabPage(title) { UseVisualStyleBackColor = true };
+        var page = new TabPage(title) { UseVisualStyleBackColor = true, Name = title };
         page.Controls.Add(content);
         return page;
     }

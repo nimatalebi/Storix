@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="NT.Storix.WinForms.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NT.Storix.Core\NT.Storix.Core.csproj" />
   </ItemGroup>
 
