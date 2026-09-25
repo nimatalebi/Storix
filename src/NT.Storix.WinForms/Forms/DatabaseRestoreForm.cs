@@ -26,8 +26,8 @@ internal sealed class DatabaseRestoreForm : Form
         ClientSize = new Size(640, 420);
         MinimizeBox = MaximizeBox = false;
 
-        _file.Items.AddRange(Directory.EnumerateFiles(folder, "*.bak", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(folder, "*.archive", SearchOption.AllDirectories)).Cast<object>().ToArray());
+        _file.Items.AddRange(new[] { "*.bak", "*.archive", "*.dump", "*.sql" }
+            .SelectMany(pattern => Directory.EnumerateFiles(folder, pattern, SearchOption.AllDirectories)).Cast<object>().ToArray());
         _file.SelectedIndexChanged += (_, _) => UpdateMode();
         _run = Ui.Button("Restore", OnRun);
 
@@ -60,6 +60,8 @@ internal sealed class DatabaseRestoreForm : Form
 
     private bool IsSql => (_file.SelectedItem as string)?.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) == true;
 
+    private bool IsDump => (_file.SelectedItem as string) is { } f && (f.EndsWith(".dump", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
+
     private void UpdateMode()
     {
         if (_file.SelectedItem is not string path)
@@ -67,7 +69,9 @@ internal sealed class DatabaseRestoreForm : Form
             return;
         }
 
-        _mode.Text = IsSql ? "SQL Server: RESTORE DATABASE ... WITH MOVE" : "MongoDB: mongorestore";
+        _mode.Text = IsDump
+            ? (_source?.Kind == SourceKind.MySql ? "MySQL: replay the dump (recreates the databases)" : "PostgreSQL: pg_restore into the database below (created)")
+            : IsSql ? "SQL Server: RESTORE DATABASE ... WITH MOVE" : "MongoDB: mongorestore";
         _dataDirectory.Enabled = IsSql;
         _tool.Enabled = _fromDatabase.Enabled = !IsSql;
         _replace.Text = IsSql ? "Replace the database if it exists" : "Drop existing collections before restoring (--drop)";
@@ -92,6 +96,12 @@ internal sealed class DatabaseRestoreForm : Form
         if (_file.SelectedItem is not string path || string.IsNullOrWhiteSpace(_connection.Text))
         {
             Dialogs.Error(this, "Select a file and enter a connection string.");
+            return;
+        }
+
+        if (IsDump)
+        {
+            await RestoreDumpAsync(path);
             return;
         }
 
@@ -125,6 +135,39 @@ internal sealed class DatabaseRestoreForm : Form
         {
             UseWaitCursor = false;
             _run.Enabled = true;
+        }
+    }
+
+    /// <summary>PostgreSQL (.dump / pg_dumpall .sql) and MySQL (.sql) dumps use the job's connection settings.</summary>
+    private async Task RestoreDumpAsync(string path)
+    {
+        var database = _database.Text.Trim();
+        UseWaitCursor = true;
+        try
+        {
+            if (_source?.Kind == SourceKind.MySql)
+            {
+                await Task.Run(() => DumpRestorers.RestoreMySqlAsync(_source.MySql, path, CancellationToken.None));
+            }
+            else if (_source?.Kind == SourceKind.PostgreSql)
+            {
+                await Task.Run(() => DumpRestorers.RestorePostgreSqlAsync(_source.PostgreSql, path, database, CancellationToken.None));
+            }
+            else
+            {
+                Dialogs.Error(this, "Open this dialog from a PostgreSQL or MySQL job to restore its dumps.");
+                return;
+            }
+
+            Dialogs.Info(this, "The dump was restored successfully.");
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, ex.Message);
+        }
+        finally
+        {
+            UseWaitCursor = false;
         }
     }
 

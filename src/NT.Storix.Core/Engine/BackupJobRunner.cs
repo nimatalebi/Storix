@@ -379,6 +379,14 @@ public sealed class BackupJobRunner(
             case SourceKind.MongoDb when string.IsNullOrWhiteSpace(job.Source.MongoDb.ConnectionString):
                 errors.Add("MongoDB connection string is required.");
                 break;
+            case SourceKind.Sqlite when string.IsNullOrWhiteSpace(job.Source.Sqlite.DatabasePaths):
+                errors.Add("Select at least one SQLite database.");
+                break;
+            case SourceKind.PostgreSql when string.IsNullOrWhiteSpace(job.Source.PostgreSql.Host):
+            case SourceKind.MySql when string.IsNullOrWhiteSpace(job.Source.MySql.Host):
+            case SourceKind.Redis when string.IsNullOrWhiteSpace(job.Source.Redis.Host):
+                errors.Add("The database host is required.");
+                break;
         }
 
         return errors;

@@ -108,10 +108,12 @@ internal sealed class Harness : IDisposable
     }
 
     /// <summary>Writes an executable shell script that forwards its arguments to a tool inside a container.</summary>
-    public string DockerExecWrapper(string containerId, string tool)
+    public string DockerExecWrapper(string containerId, string tool, string? folder = null)
     {
-        var path = Path.Combine(Root, $"{tool}-wrapper.sh");
-        File.WriteAllText(path, $"#!/bin/sh\nexec docker exec {containerId} {tool} \"$@\"\n");
+        var path = folder is null ? Path.Combine(Root, $"{tool}-wrapper.sh") : Path.Combine(folder, tool);
+
+        // Password variables are forwarded into the container (docker exec -e NAME copies the value).
+        File.WriteAllText(path, $"#!/bin/sh\nexec docker exec -i -e PGPASSWORD -e MYSQL_PWD -e REDISCLI_AUTH {containerId} {tool} \"$@\"\n");
         if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);

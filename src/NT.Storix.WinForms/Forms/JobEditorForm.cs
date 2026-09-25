@@ -689,14 +689,42 @@ internal sealed class JobEditorForm : Form
     private void ShowSourcePanel()
     {
         _sourceHost.Controls.Clear();
-        var panel = (SourceKind)_sourceKind.SelectedItem! switch
+        var kind = (SourceKind)_sourceKind.SelectedItem!;
+        Control panel = kind switch
         {
+            SourceKind.Files => _filesPanel,
             SourceKind.SqlServer => _sqlPanel,
             SourceKind.MongoDb => _mongoPanel,
-            _ => _filesPanel,
+            _ => BuildGenericSourcePanel(kind),
         };
         panel.Dock = DockStyle.Fill;
         _sourceHost.Controls.Add(panel);
+    }
+
+    /// <summary>PostgreSQL, MySQL, Redis, SQLite and Windows system sources are edited in a property grid.</summary>
+    private Control BuildGenericSourcePanel(SourceKind kind)
+    {
+        var previous = Job.Source.Kind;
+        Job.Source.Kind = kind;
+        var options = Job.Source.ActiveOptions;
+        Job.Source.Kind = previous;
+
+        var hint = kind switch
+        {
+            SourceKind.PostgreSql => "Requires the PostgreSQL client tools (pg_dump, pg_dumpall). Leave Databases empty to dump the whole cluster.",
+            SourceKind.MySql => "Requires mysqldump (MySQL) or mariadb-dump (MariaDB). The password is passed through the environment, never on the command line.",
+            SourceKind.Redis => "Requires redis-cli. Creates an RDB snapshot of the server.",
+            SourceKind.Sqlite => "Databases are copied with SQLite's online backup API, so applications can keep using them.",
+            SourceKind.WindowsSystem => "Backs up IIS configuration, registry keys, scheduled tasks and public certificates of this server.",
+            _ => string.Empty,
+        };
+
+        var grid = Ui.Form();
+        grid.Padding = Padding.Empty;
+        grid.Row(null, new Label { Text = hint, AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = SystemColors.GrayText });
+        grid.Row(null, new PropertyGrid { SelectedObject = options, ToolbarVisible = false, PropertySort = PropertySort.Categorized }, height: 360);
+        grid.Fill();
+        return grid;
     }
 
     private void AddFolder()

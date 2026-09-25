@@ -3,7 +3,7 @@
 **Storix** is an open-source backup agent for Windows.
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
 
-Storix backs up **files and folders**, **SQL Server** databases (`.bak`) and **MongoDB** (`mongodump`). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** or **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…). It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
+Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive** or **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…). It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
 [![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
@@ -25,8 +25,13 @@ Backup Agent
 │   ├── Files
 │   ├── SQL Server
 │   │   └── .bak
-│   └── MongoDB
-│       └── mongodump
+│   ├── MongoDB
+│   │   └── mongodump
+│   ├── PostgreSQL (pg_dump / pg_dumpall)
+│   ├── MySQL / MariaDB (mysqldump)
+│   ├── Redis (RDB snapshot)
+│   ├── SQLite (online backup API)
+│   └── Windows system (IIS, registry, tasks, certificates)
 │
 ├── Processing
 │   ├── Compression
@@ -146,7 +151,7 @@ dotnet test Storix.sln
 
 ### Integration tests
 
-These tests start real SFTP, FTP, S3 (LocalStack), SQL Server and MongoDB (replica set) servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
+These tests start real SFTP, FTP, S3 (LocalStack), SQL Server, MongoDB (replica set), PostgreSQL, MySQL and Redis servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
 
 ```bash
 STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests

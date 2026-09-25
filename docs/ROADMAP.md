@@ -62,8 +62,8 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Build once and upload to many destinations; copy jobs for the 3-2-1 rule
 
 ### More sources
-- [ ] PostgreSQL, MySQL/MariaDB, Redis, SQLite
-- [ ] IIS configuration, registry keys, scheduled tasks, certificates
+- [x] PostgreSQL, MySQL/MariaDB, Redis, SQLite
+- [x] IIS configuration, registry keys, scheduled tasks, certificates
 - [ ] Docker volumes, Hyper-V VMs
 
 ### More destinations

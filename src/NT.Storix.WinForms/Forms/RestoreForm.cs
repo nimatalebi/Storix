@@ -300,8 +300,7 @@ internal sealed class RestoreForm : Form
 
     private static bool HasDatabaseFiles(string folder) =>
         Directory.Exists(folder)
-        && (Directory.EnumerateFiles(folder, "*.bak", SearchOption.AllDirectories).Any()
-            || Directory.EnumerateFiles(folder, "*.archive", SearchOption.AllDirectories).Any());
+        && new[] { "*.bak", "*.archive", "*.dump", "*.sql" }.Any(p => Directory.EnumerateFiles(folder, p, SearchOption.AllDirectories).Any());
 
     private void Log(string message) =>
         _log.AppendText($"{DateTime.Now:HH:mm:ss}  {message}{Environment.NewLine}");

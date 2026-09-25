@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace NT.Storix.Core.Models;
 
 public enum SourceKind
@@ -5,6 +7,12 @@ public enum SourceKind
     Files,
     SqlServer,
     MongoDb,
+    PostgreSql,
+    MySql,
+    Redis,
+    Sqlite,
+    /// <summary>Windows configuration: IIS, registry keys, scheduled tasks, certificates.</summary>
+    WindowsSystem,
 }
 
 public sealed class SourceDefinition
@@ -16,6 +24,30 @@ public sealed class SourceDefinition
     public SqlServerSourceOptions SqlServer { get; set; } = new();
 
     public MongoDbSourceOptions MongoDb { get; set; } = new();
+
+    public PostgreSqlSourceOptions PostgreSql { get; set; } = new();
+
+    public MySqlSourceOptions MySql { get; set; } = new();
+
+    public RedisSourceOptions Redis { get; set; } = new();
+
+    public SqliteSourceOptions Sqlite { get; set; } = new();
+
+    public WindowsSystemSourceOptions WindowsSystem { get; set; } = new();
+
+    /// <summary>Options object of the selected kind (for generic editors).</summary>
+    public object ActiveOptions => Kind switch
+    {
+        SourceKind.Files => Files,
+        SourceKind.SqlServer => SqlServer,
+        SourceKind.MongoDb => MongoDb,
+        SourceKind.PostgreSql => PostgreSql,
+        SourceKind.MySql => MySql,
+        SourceKind.Redis => Redis,
+        SourceKind.Sqlite => Sqlite,
+        SourceKind.WindowsSystem => WindowsSystem,
+        _ => throw new NotSupportedException($"Source kind {Kind} is not supported."),
+    };
 }
 
 public sealed class FileSourceOptions
@@ -89,4 +121,88 @@ public sealed class MongoDbSourceOptions
 
     /// <summary>Extra raw arguments passed to mongodump.</summary>
     public string? ExtraArguments { get; set; }
+}
+
+public sealed class PostgreSqlSourceOptions
+{
+    [Category("Tool"), Description("Folder of the PostgreSQL client tools or full path to pg_dump(.exe). Empty = on PATH.")]
+    public string? PgDumpPath { get; set; }
+
+    [Category("Connection")]
+    public string Host { get; set; } = "localhost";
+
+    [Category("Connection")]
+    public int Port { get; set; } = 5432;
+
+    [Category("Connection")]
+    public string UserName { get; set; } = "postgres";
+
+    [Category("Connection"), PasswordPropertyText(true), Secret]
+    public string? Password { get; set; }
+
+    [Category("Backup"), Description("Comma-separated databases, dumped with pg_dump in custom format (-Fc). Empty = the whole cluster with pg_dumpall.")]
+    public string? Databases { get; set; }
+}
+
+public sealed class MySqlSourceOptions
+{
+    [Category("Tool"), Description("Full path to mysqldump(.exe) or mariadb-dump(.exe). Empty = mysqldump on PATH.")]
+    public string? MysqldumpPath { get; set; }
+
+    [Category("Connection")]
+    public string Host { get; set; } = "localhost";
+
+    [Category("Connection")]
+    public int Port { get; set; } = 3306;
+
+    [Category("Connection")]
+    public string UserName { get; set; } = "root";
+
+    [Category("Connection"), PasswordPropertyText(true), Secret]
+    public string? Password { get; set; }
+
+    [Category("Backup"), Description("Comma-separated databases. Empty = all databases.")]
+    public string? Databases { get; set; }
+
+    [Category("Backup"), Description("--single-transaction: consistent InnoDB snapshot without locking tables.")]
+    public bool SingleTransaction { get; set; } = true;
+}
+
+public sealed class RedisSourceOptions
+{
+    [Category("Tool"), Description("Full path to redis-cli(.exe). Empty = on PATH.")]
+    public string? RedisCliPath { get; set; }
+
+    [Category("Connection")]
+    public string Host { get; set; } = "localhost";
+
+    [Category("Connection")]
+    public int Port { get; set; } = 6379;
+
+    [Category("Connection"), Description("ACL user name (Redis 6+), optional.")]
+    public string? UserName { get; set; }
+
+    [Category("Connection"), PasswordPropertyText(true), Secret]
+    public string? Password { get; set; }
+}
+
+public sealed class SqliteSourceOptions
+{
+    [Category("Backup"), Description("Comma-separated paths of SQLite database files. They are copied with the online backup API, so they stay consistent while in use.")]
+    public string? DatabasePaths { get; set; }
+}
+
+public sealed class WindowsSystemSourceOptions
+{
+    [Category("IIS"), Description("Back up the IIS configuration (applicationHost.config and related files).")]
+    public bool IisConfiguration { get; set; } = true;
+
+    [Category("Registry"), Description(@"Comma-separated registry keys to export, e.g. HKLM\SOFTWARE\MyApp")]
+    public string? RegistryKeys { get; set; }
+
+    [Category("Scheduled tasks"), Description("Export all scheduled tasks as XML (except Microsoft's own).")]
+    public bool ScheduledTasks { get; set; } = true;
+
+    [Category("Certificates"), Description("Comma-separated LocalMachine certificate stores to export (public certificates), e.g. My, WebHosting")]
+    public string? CertificateStores { get; set; } = "My";
 }
