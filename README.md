@@ -111,7 +111,8 @@ The manager and the service share only the SQLite database. The manager saves jo
 | `src/NT.Storix.Core` | The engine: models, scheduling (Cronos), sources, processing, destinations, SQLite repositories, secret protection, import/export. |
 | `src/NT.Storix.Service` | Worker Service host that runs as the Windows service (`Storix.Service.exe`). Logs with Serilog to `%ProgramData%\Storix\logs`. |
 | `src/NT.Storix.WinForms` | Storix Manager (`Storix.Manager.exe`), the desktop UI. |
-| `tests/NT.Storix.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export and the full pipeline. |
+| `tests/NT.Storix.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export, restore and the full pipeline. |
+| `tests/NT.Storix.IntegrationTests` | Docker-based tests (Testcontainers) against real SFTP, FTP, SQL Server and MongoDB servers. |
 
 All namespaces start with `NT.` (for example `NT.Storix.Core.Engine`).
 
@@ -132,6 +133,14 @@ git clone https://github.com/nimatalebi/Storix.git
 cd Storix
 dotnet build Storix.sln
 dotnet test Storix.sln
+```
+
+### Integration tests
+
+These tests start real SFTP, FTP, SQL Server and MongoDB (replica set) servers in Docker. For each one they back up, restore and compare the data. They are opt-in:
+
+```bash
+STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests
 ```
 
 ### Publish and install

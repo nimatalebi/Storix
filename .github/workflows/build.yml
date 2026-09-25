@@ -7,11 +7,12 @@ on:
 
 jobs:
   build:
+    name: Build & unit tests (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -19,7 +20,22 @@ jobs:
         run: dotnet restore Storix.sln
 
       - name: Build
-        run: dotnet build Storix.sln -c Release --no-restore
+        run: dotnet build Storix.sln -c Release --no-restore -warnaserror
 
       - name: Test
         run: dotnet test Storix.sln -c Release --no-build --verbosity normal
+
+  integration:
+    name: Integration tests (Docker)
+    runs-on: ubuntu-latest
+    env:
+      STORIX_INTEGRATION_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test tests/NT.Storix.IntegrationTests -c Release --verbosity normal
