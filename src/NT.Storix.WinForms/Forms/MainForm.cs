@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.ServiceProcess;
 using NT.Storix.Core;
 using NT.Storix.Core.Configuration;
+using NT.Storix.Core.Engine;
 using NT.Storix.Core.Models;
 using NT.Storix.Core.Monitoring;
 using NT.Storix.Core.Security;
@@ -47,10 +48,14 @@ internal sealed class MainForm : Form
     private List<NotificationChannel> _channelList = [];
 
     private List<BackupJob> _jobList = [];
+    private readonly TrayIcon _tray;
+    private readonly bool _startInTray;
 
-    public MainForm(AppServices services)
+    public MainForm(AppServices services, bool startInTray = false)
     {
         _services = services;
+        _startInTray = startInTray;
+        _tray = new TrayIcon(this, services);
 
         Text = "Storix - Backup Agent";
         StartPosition = FormStartPosition.CenterScreen;
@@ -62,6 +67,7 @@ internal sealed class MainForm : Form
         _tabs.TabPages.Add(CreatePage("Settings", BuildSettingsTab()));
         _tabs.TabPages.Add(CreatePage("Service", BuildServiceTab()));
         _tabs.TabPages.Add(CreatePage("Audit", BuildAuditTab()));
+        _tabs.TabPages.Add(CreatePage("Dashboard", BuildDashboardTab()));
         _tabs.SelectedIndexChanged += (_, _) => RefreshCurrentTab();
 
         var status = new StatusStrip();
@@ -72,15 +78,54 @@ internal sealed class MainForm : Form
         Controls.Add(BuildMenu());
         Controls.Add(status);
 
-        _timer.Tick += (_, _) => RefreshCurrentTab(silent: true);
+        _timer.Tick += (_, _) =>
+        {
+            RefreshTray();
+            if (Visible)
+            {
+                RefreshCurrentTab(silent: true);
+            }
+        };
         Load += (_, _) =>
         {
             RefreshJobs();
             LoadSettings();
             RefreshServiceStatus();
+            RefreshTray();
             _timer.Start();
         };
-        Shown += (_, _) => ShowWelcomeIfFirstRun();
+        Shown += (_, _) =>
+        {
+            if (_startInTray)
+            {
+                BeginInvoke(Hide);
+                return;
+            }
+
+            ShowWelcomeIfFirstRun();
+        };
+
+        // Minimizing hides the window; the tray icon keeps showing the status.
+        Resize += (_, _) =>
+        {
+            if (WindowState == FormWindowState.Minimized)
+            {
+                Hide();
+            }
+        };
+        FormClosed += (_, _) => _tray.Dispose();
+    }
+
+    private void RefreshTray()
+    {
+        try
+        {
+            _tray.Refresh();
+        }
+        catch (Exception)
+        {
+            // Database busy: try again on the next tick.
+        }
     }
 
     private static TabPage CreatePage(string title, Control content)
@@ -592,6 +637,89 @@ internal sealed class MainForm : Form
         _audit.EndUpdate();
     }
 
+    // ---------------------------------------------------------------- Dashboard
+
+    private readonly Label _dashboardSummary = new() { AutoSize = true, Font = new Font(SystemFonts.DefaultFont.FontFamily, 11, FontStyle.Bold), Padding = new Padding(4, 8, 4, 8) };
+    private readonly ListView _dashboardJobs = new() { View = View.Details, FullRowSelect = true, Dock = DockStyle.Fill };
+    private readonly ListView _dashboardDestinations = new() { View = View.Details, FullRowSelect = true, Dock = DockStyle.Fill };
+
+    private Control BuildDashboardTab()
+    {
+        _dashboardJobs.Columns.Add("Job", 200);
+        _dashboardJobs.Columns.Add("Success (30 days)", 120);
+        _dashboardJobs.Columns.Add("Runs", 60);
+        _dashboardJobs.Columns.Add("Failed", 60);
+        _dashboardJobs.Columns.Add("Latest size", 100);
+        _dashboardJobs.Columns.Add("Stored (est.)", 100);
+        _dashboardJobs.Columns.Add("Growth / day", 100);
+        _dashboardJobs.Columns.Add("Size in 30 days", 110);
+        _dashboardDestinations.Columns.Add("Destination", 200);
+        _dashboardDestinations.Columns.Add("Jobs", 60);
+        _dashboardDestinations.Columns.Add("Stored (est.)", 120);
+
+        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 300 };
+        split.Panel1.Controls.Add(_dashboardJobs);
+        split.Panel2.Controls.Add(_dashboardDestinations);
+
+        var note = new Label
+        {
+            Text = "Estimated from the run history and each job's retention policy; destinations are not contacted.",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Dock = DockStyle.Bottom,
+            Padding = new Padding(4),
+        };
+        _dashboardSummary.Dock = DockStyle.Top;
+
+        var panel = new Panel { Dock = DockStyle.Fill };
+        panel.Controls.Add(split);
+        panel.Controls.Add(note);
+        panel.Controls.Add(_dashboardSummary);
+        return panel;
+    }
+
+    private void RefreshDashboard()
+    {
+        var dashboard = DashboardStats.Compute(_services.Jobs.GetAll(), _services.Runs.GetRecent(null, 20_000), DateTimeOffset.UtcNow);
+        _dashboardSummary.Text = $"{dashboard.Jobs.Count} job(s)   •   success rate (30 days): {Percent(dashboard.SuccessRate)}   •   stored: {BackupJobRunner.FormatSize(dashboard.TotalStored)}";
+
+        _dashboardJobs.BeginUpdate();
+        _dashboardJobs.Items.Clear();
+        foreach (var stats in dashboard.Jobs.OrderBy(j => j.Job.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var item = new ListViewItem(
+            [
+                stats.Job.Name,
+                Percent(stats.SuccessRate),
+                stats.Runs.ToString(),
+                stats.Failed.ToString(),
+                stats.LatestSize is { } size ? BackupJobRunner.FormatSize(size) : "-",
+                BackupJobRunner.FormatSize(stats.EstimatedStored),
+                stats.GrowthPerDay is { } growth ? (growth < 0 ? "-" : "+") + BackupJobRunner.FormatSize((long)Math.Abs(growth)) : "-",
+                stats.ForecastSize is { } forecast ? BackupJobRunner.FormatSize(forecast) : "-",
+            ]);
+            if (stats.Failed > 0)
+            {
+                item.ForeColor = Color.Firebrick;
+            }
+
+            _dashboardJobs.Items.Add(item);
+        }
+
+        _dashboardJobs.EndUpdate();
+
+        _dashboardDestinations.BeginUpdate();
+        _dashboardDestinations.Items.Clear();
+        foreach (var destination in dashboard.Destinations)
+        {
+            _dashboardDestinations.Items.Add(new ListViewItem([destination.Destination, destination.Jobs.ToString(), BackupJobRunner.FormatSize(destination.EstimatedStored)]));
+        }
+
+        _dashboardDestinations.EndUpdate();
+    }
+
+    private static string Percent(double? rate) => rate is { } value ? $"{value:P0}" : "-";
+
     // ---------------------------------------------------------------- Settings
 
     private Control BuildSettingsTab()
@@ -987,6 +1115,9 @@ internal sealed class MainForm : Form
                     break;
                 case 4 when !silent:
                     RefreshAudit();
+                    break;
+                case 5:
+                    RefreshDashboard();
                     break;
             }
         }

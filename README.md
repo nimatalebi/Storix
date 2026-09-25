@@ -227,6 +227,10 @@ dotnet run --project src/NT.Storix.Service
 6. **Retention & Retry**, then **Notifications** (e-mail; set up SMTP in **Settings**).
 7. Save. Use **Run now** to start a backup right away and follow it in **History**.
 
+The **Dashboard** tab shows the success rate of the last 30 days, the space each job and each destination takes (estimated from the run history and the retention policy), the daily growth of the backup size and a 30-day forecast.
+
+While Storix Manager is open, a tray icon shows the overall status (OK, running, failed), offers **Run now** for every job and pops up a notice when a backup fails. Minimizing the window hides it to the tray. Start the manager with `Storix.Manager.exe --tray` to open it straight into the tray, for example from a scheduled task at log-on (the manager needs administrator rights, so the classic *Run* registry key does not work).
+
 ### Backup files
 
 Each run produces:

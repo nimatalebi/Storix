@@ -6,7 +6,7 @@ namespace NT.Storix.WinForms;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -23,6 +23,7 @@ internal static class Program
             return;
         }
 
-        Application.Run(new MainForm(services));
+        var startInTray = args.Any(a => string.Equals(a, "--tray", StringComparison.OrdinalIgnoreCase));
+        Application.Run(new MainForm(services, startInTray));
     }
 }

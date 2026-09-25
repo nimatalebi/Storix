@@ -77,10 +77,10 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Restore preview (size, file count)
 
 ### Monitoring and UX
-- [ ] Tray icon with status and "run now"
+- [x] Tray icon with status and "run now"
 - [x] Telegram / Bale / Slack / Teams / Discord notifications
 - [x] Weekly summary e-mail (and chat channels)
-- [ ] Dashboard: storage per destination, growth trend, success rate
+- [x] Dashboard: storage per destination, growth trend, forecast, success rate
 - [x] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode
 - [x] Job templates and dry-run mode
