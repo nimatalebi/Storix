@@ -9,6 +9,8 @@
     <OutputName>Storix-$(ProductVersion)-x64</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
     <DefineConstants>ProductVersion=$(ProductVersion)</DefineConstants>
+    <!-- WIX1149: MsiServiceConfig is only used for delayed auto-start, which works on all supported Windows versions. -->
+    <SuppressSpecificWarnings>1149</SuppressSpecificWarnings>
     <!-- Keep central package management out of the WiX project. -->
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <EnableWindowsTargeting>false</EnableWindowsTargeting>

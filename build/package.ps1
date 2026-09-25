@@ -15,8 +15,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
-$publish = Join-Path $Output 'publish'
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
+$Output = (Resolve-Path $Output).Path
+$publish = Join-Path $Output 'publish'
 if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 
 foreach ($project in 'src/NT.Storix.Service/NT.Storix.Service.csproj', 'src/NT.Storix.WinForms/NT.Storix.WinForms.csproj') {
