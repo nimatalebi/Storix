@@ -139,12 +139,20 @@ internal sealed class MainForm : Form
 
         var toolbar = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden };
         toolbar.Items.Add(new ToolStripButton("New", null, (_, _) => NewJob()));
+        var fromTemplate = new ToolStripDropDownButton("New from template");
+        foreach (var template in NT.Storix.Core.Configuration.JobTemplate.All)
+        {
+            fromTemplate.DropDownItems.Add(new ToolStripMenuItem(template.Name, null, (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
+        }
+
+        toolbar.Items.Add(fromTemplate);
         toolbar.Items.Add(new ToolStripButton("Edit", null, (_, _) => EditJob()));
         toolbar.Items.Add(new ToolStripButton("Duplicate", null, (_, _) => DuplicateJob()));
         toolbar.Items.Add(new ToolStripButton("Delete", null, (_, _) => DeleteJob()));
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Enable / Disable", null, (_, _) => ToggleJob()));
         toolbar.Items.Add(new ToolStripButton("Run now", null, (_, _) => RunNow()));
+        toolbar.Items.Add(new ToolStripButton("Dry run", null, (_, _) => DryRunJob()));
         toolbar.Items.Add(new ToolStripButton("Pause / Resume", null, (_, _) => TogglePause()));
         toolbar.Items.Add(new ToolStripButton("Cancel run", null, (_, _) => CancelRun()));
         toolbar.Items.Add(new ToolStripButton("Test restore", null, (_, _) => RequestDrill()));
@@ -209,9 +217,9 @@ internal sealed class MainForm : Form
         _jobs.EndUpdate();
     }
 
-    private void NewJob()
+    private void NewJob(BackupJob? template = null)
     {
-        using var editor = new JobEditorForm(new BackupJob(), _services.Destinations);
+        using var editor = new JobEditorForm(template ?? new BackupJob(), _services.Destinations);
         if (editor.ShowDialog(this) == DialogResult.OK)
         {
             _services.Jobs.Save(editor.Job);
@@ -288,6 +296,39 @@ internal sealed class MainForm : Form
         else
         {
             Dialogs.Info(this, $"'{job.Name}' was queued and will start within a few seconds. Follow it in the History tab.");
+        }
+    }
+
+    private async void DryRunJob()
+    {
+        if (SelectedJob is not { } job)
+        {
+            return;
+        }
+
+        UseWaitCursor = true;
+        try
+        {
+            var report = await Task.Run(() => NT.Storix.Core.Engine.DryRun.RunAsync(job, _services.Destinations, CancellationToken.None));
+            using var form = new Form { Text = $"Dry run - {job.Name}", ClientSize = new Size(720, 520), StartPosition = FormStartPosition.CenterParent };
+            form.Controls.Add(new TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Both,
+                Dock = DockStyle.Fill,
+                Font = new Font(FontFamily.GenericMonospace, 9),
+                Text = report.ReplaceLineEndings(Environment.NewLine),
+            });
+            form.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            Dialogs.Error(this, ex.Message);
+        }
+        finally
+        {
+            UseWaitCursor = false;
         }
     }
 

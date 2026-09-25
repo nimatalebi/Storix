@@ -20,7 +20,7 @@ $Output = (Resolve-Path $Output).Path
 $publish = Join-Path $Output 'publish'
 if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 
-foreach ($project in 'src/NT.Storix.Service/NT.Storix.Service.csproj', 'src/NT.Storix.WinForms/NT.Storix.WinForms.csproj') {
+foreach ($project in 'src/NT.Storix.Service/NT.Storix.Service.csproj', 'src/NT.Storix.WinForms/NT.Storix.WinForms.csproj', 'src/NT.Storix.Cli/NT.Storix.Cli.csproj') {
     dotnet publish (Join-Path $root $project) -c Release -r $Runtime --self-contained true -p:Version=$Version -o $publish
     if ($LASTEXITCODE -ne 0) { throw "Publishing $project failed." }
 }
@@ -47,6 +47,15 @@ dotnet build (Join-Path $root 'installer/Storix.Installer.wixproj') -c Release -
 if ($LASTEXITCODE -ne 0) { throw 'Building the MSI failed.' }
 $msi = Join-Path $Output "Storix-$msiVersion-x64.msi"
 Invoke-Sign @($msi)
+
+# Standalone restore tool: one self-contained file, no installation or database needed.
+$standalone = Join-Path $Output 'standalone'
+dotnet publish (Join-Path $root 'src/NT.Storix.Cli/NT.Storix.Cli.csproj') -c Release -r $Runtime --self-contained true -p:Version=$Version `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $standalone
+if ($LASTEXITCODE -ne 0) { throw 'Publishing the standalone CLI failed.' }
+Copy-Item (Join-Path $standalone 'storix.exe') (Join-Path $Output "storix-$Version-x64.exe") -Force
+Remove-Item $standalone -Recurse -Force
+Invoke-Sign @((Join-Path $Output "storix-$Version-x64.exe"))
 
 $zip = Join-Path $Output "Storix-$Version-x64-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip }

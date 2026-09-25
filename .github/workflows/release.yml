@@ -46,6 +46,7 @@ jobs:
           path: |
             artifacts/*.msi
             artifacts/*.zip
+            artifacts/*.exe
             artifacts/SHA256SUMS.txt
 
       - name: GitHub release
@@ -56,4 +57,5 @@ jobs:
           files: |
             artifacts/*.msi
             artifacts/*.zip
+            artifacts/*.exe
             artifacts/SHA256SUMS.txt

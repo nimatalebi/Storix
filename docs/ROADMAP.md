@@ -73,7 +73,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ### Restore experience
 - [x] Browse and search inside a backup; restore single files
-- [ ] Standalone restore CLI (`storix-restore`) that needs no install and no database
+- [x] Standalone restore CLI (`storix-<version>-x64.exe`) that needs no install and no database
 - [x] Restore preview (size, file count)
 
 ### Monitoring and UX
@@ -83,12 +83,13 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Dashboard: storage per destination, growth trend, success rate
 - [ ] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode
-- [ ] Job templates and a first-run wizard; dry-run mode
+- [x] Job templates and dry-run mode
+- [ ] First-run wizard
 
 ### Architecture and ecosystem
 - [ ] Named-pipe or gRPC API between the UI and the service (replaces database polling)
-- [ ] CLI: `storix list | run | status | restore | verify | export | import`
-- [ ] Config as code (YAML/JSON job files with a validate command)
+- [x] CLI: `storix jobs | run | history | cancel | drill | restore | verify | list-files | decrypt | export | import`
+- [x] Config as code (JSON job files with `${env:NAME}` secrets, `validate` and `apply` commands)
 - [ ] Plugin system for sources and destinations
 - [ ] Circuit breaker per destination; job chains
 - [ ] Auto-update from GitHub Releases with signature check

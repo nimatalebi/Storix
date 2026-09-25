@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 
-foreach ($project in 'src/NT.Storix.Service/NT.Storix.Service.csproj', 'src/NT.Storix.WinForms/NT.Storix.WinForms.csproj') {
+foreach ($project in 'src/NT.Storix.Service/NT.Storix.Service.csproj', 'src/NT.Storix.WinForms/NT.Storix.WinForms.csproj', 'src/NT.Storix.Cli/NT.Storix.Cli.csproj') {
     dotnet publish (Join-Path $root $project) -c $Configuration -r $Runtime --self-contained true -o $Output
     if ($LASTEXITCODE -ne 0) { throw "Publishing $project failed." }
 }

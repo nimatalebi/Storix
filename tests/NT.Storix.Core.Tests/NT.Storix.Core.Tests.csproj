@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NT.Storix.Core\NT.Storix.Core.csproj" />
+    <ProjectReference Include="..\..\src\NT.Storix.Cli\NT.Storix.Cli.csproj" />
   </ItemGroup>
 
 </Project>

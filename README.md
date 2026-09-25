@@ -119,6 +119,7 @@ The manager and the service share only the SQLite database. The manager saves jo
 | `src/NT.Storix.Core` | The engine: models, scheduling (Cronos), sources, processing, destinations, SQLite repositories, secret protection, import/export. |
 | `src/NT.Storix.Service` | Worker Service host that runs as the Windows service (`Storix.Service.exe`). Logs with Serilog to `%ProgramData%\Storix\logs`. |
 | `src/NT.Storix.WinForms` | Storix Manager (`Storix.Manager.exe`), the desktop UI. |
+| `src/NT.Storix.Cli` | `storix.exe` command-line tool (standalone restore, jobs, config as code). |
 | `tests/NT.Storix.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export, restore and the full pipeline. |
 | `tests/NT.Storix.IntegrationTests` | Docker-based tests (Testcontainers) against real SFTP, FTP, SQL Server and MongoDB servers. |
 
@@ -247,6 +248,41 @@ The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix
 `"STRX" | version | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`.
 
 > **Keep your encryption passwords safe.** Without the password (and the key file, if you use one), an encrypted backup cannot be restored. In the job editor, **Processing → Recovery sheet…** prints everything needed for a restore. You can also add a random **key file**, which is combined with the password.
+
+### Command line
+
+`storix.exe` is installed next to the manager. The release page also offers `storix-<version>-x64.exe`, a single self-contained file for disaster recovery. With only that file, the backup and the password, you can verify, list and restore backups on any Windows machine:
+
+```powershell
+storix verify   web_20260101_010000.zip.aes --password-env STORIX_PW
+storix list-files web_20260101_010000.zip.aes --password-env STORIX_PW
+storix restore  web_20260101_010000.zip.aes --to D:\restore --include "wwwroot/web.config" --password-env STORIX_PW
+```
+
+Job commands use the Storix database of the machine:
+
+```powershell
+storix jobs
+storix run "SQL Server nightly" --wait        # queue and wait for the result
+storix run "SQL Server nightly" --dry-run     # what would happen, nothing is written
+storix history --limit 50
+storix cancel "SQL Server nightly"
+```
+
+### Config as code
+
+Job files (the export format) can be kept in version control. Write secrets as `${env:NAME}` placeholders:
+
+```json
+"processing": { "encrypt": true, "encryptionPassword": "${env:STORIX_ARCHIVE_PASSWORD}" }
+```
+
+```powershell
+storix validate jobs.storix.json    # checks every job, reports missing variables
+storix apply    jobs.storix.json    # imports the jobs, resolving the placeholders
+```
+
+The manager also offers **New from template** (SQL Server nightly to S3, log backups, website to SFTP, documents to NAS, MongoDB to Google Drive) and a **Dry run** button.
 
 ### Import / export
 
