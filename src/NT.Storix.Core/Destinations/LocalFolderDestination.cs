@@ -53,20 +53,24 @@ public sealed class LocalFolderDestination(LocalFolderOptions options) : IBackup
             await using var output = new FileStream(partial, existing > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
             input.Position = existing;
 
-            var buffer = new byte[BufferSize];
-            var total = existing;
-            int read;
-            while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
-            {
-                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                total += read;
-                progress?.Report(total);
-            }
-
+            await StreamCopy.CopyAsync(input, output, progress, cancellationToken, existing);
             await output.FlushAsync(cancellationToken);
         }
 
         File.Move(partial, target, overwrite: true);
+    }
+
+    public async Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken)
+    {
+        var source = Path.Combine(Root, remoteName);
+        if (!File.Exists(source))
+        {
+            throw new FileNotFoundException($"'{remoteName}' was not found in '{Root}'.", source);
+        }
+
+        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
+        await using var output = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
+        await StreamCopy.CopyAsync(input, output, progress, cancellationToken);
     }
 
     public Task DeleteAsync(string remoteName, CancellationToken cancellationToken)

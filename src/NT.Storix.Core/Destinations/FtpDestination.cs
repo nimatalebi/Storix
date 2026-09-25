@@ -58,6 +58,17 @@ public sealed class FtpDestination(FtpOptions options) : IBackupDestination
         await client.MoveFile(partial, target, FtpRemoteExists.Overwrite, cancellationToken);
     }
 
+    public async Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken)
+    {
+        var client = await GetClientAsync(cancellationToken);
+        IProgress<FtpProgress>? ftpProgress = progress is null ? null : new Progress<FtpProgress>(p => progress.Report(p.TransferredBytes));
+        var status = await client.DownloadFile(localPath, RemoteDirectory + remoteName, FtpLocalExists.Overwrite, FtpVerify.None, ftpProgress, cancellationToken);
+        if (status != FtpStatus.Success)
+        {
+            throw new IOException($"FTP download of '{remoteName}' failed.");
+        }
+    }
+
     public async Task DeleteAsync(string remoteName, CancellationToken cancellationToken)
     {
         var client = await GetClientAsync(cancellationToken);

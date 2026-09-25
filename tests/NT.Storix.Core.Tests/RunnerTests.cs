@@ -38,6 +38,9 @@ public class RunnerTests
                     ? throw new IOException("Simulated network failure")
                     : inner.UploadAsync(localPath, remoteName, progress, cancellationToken);
 
+            public Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken) =>
+                inner.DownloadAsync(remoteName, localPath, progress, cancellationToken);
+
             public Task DeleteAsync(string remoteName, CancellationToken cancellationToken) => inner.DeleteAsync(remoteName, cancellationToken);
 
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;

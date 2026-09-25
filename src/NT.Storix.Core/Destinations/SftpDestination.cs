@@ -85,6 +85,13 @@ public sealed class SftpDestination(SftpOptions options) : IBackupDestination
         client.RenameFile(partial, target);
     }, cancellationToken);
 
+    public Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken) => Task.Run(() =>
+    {
+        var client = GetClient();
+        using var output = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
+        client.DownloadFile($"{RemoteDirectory}/{remoteName}", output, progress is null ? null : bytes => progress.Report((long)bytes));
+    }, cancellationToken);
+
     public Task DeleteAsync(string remoteName, CancellationToken cancellationToken) => Task.Run(() =>
     {
         var client = GetClient();

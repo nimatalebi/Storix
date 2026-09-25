@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<INotifier, EmailNotifier>();
         services.AddSingleton<BackupJobRunner>();
         services.AddSingleton<BackupScheduler>();
+        services.AddSingleton<RestoreService>();
         return services;
     }
 }

@@ -61,6 +61,27 @@ public sealed class GoogleDriveDestination(GoogleDriveOptions options) : IBackup
         }
     }
 
+    public async Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken)
+    {
+        var service = GetService();
+        var file = (await QueryAsync($"'{Escape(FolderId)}' in parents and name = '{Escape(remoteName)}' and trashed = false", cancellationToken)).FirstOrDefault()
+                   ?? throw new FileNotFoundException($"'{remoteName}' was not found in the Google Drive folder.");
+
+        var request = service.Files.Get(file.Id);
+        request.SupportsAllDrives = true;
+        if (progress is not null)
+        {
+            request.MediaDownloader.ProgressChanged += p => progress.Report(p.BytesDownloaded);
+        }
+
+        await using var output = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+        var result = await request.DownloadAsync(output, cancellationToken);
+        if (result.Status != Google.Apis.Download.DownloadStatus.Completed)
+        {
+            throw new IOException($"Google Drive download of '{remoteName}' failed.", result.Exception);
+        }
+    }
+
     public async Task DeleteAsync(string remoteName, CancellationToken cancellationToken)
     {
         var service = GetService();

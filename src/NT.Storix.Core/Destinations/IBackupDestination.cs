@@ -20,5 +20,8 @@ public interface IBackupDestination : IAsyncDisposable
     /// </summary>
     Task UploadAsync(string localPath, string remoteName, IProgress<long>? progress, CancellationToken cancellationToken);
 
+    /// <summary>Downloads a remote file to <paramref name="localPath"/> (overwriting it).</summary>
+    Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken);
+
     Task DeleteAsync(string remoteName, CancellationToken cancellationToken);
 }
