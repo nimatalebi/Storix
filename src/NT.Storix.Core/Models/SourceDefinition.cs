@@ -30,6 +30,12 @@ public sealed class FileSourceOptions
 
     /// <summary>Skip files that are locked by another process instead of failing the whole job.</summary>
     public bool SkipLockedFiles { get; set; } = true;
+
+    /// <summary>
+    /// Windows: read files from a Volume Shadow Copy snapshot so open and locked files are backed up in a
+    /// consistent state. Falls back to the live files (with a warning) if the snapshot cannot be created.
+    /// </summary>
+    public bool UseVss { get; set; }
 }
 
 public sealed class SqlServerSourceOptions

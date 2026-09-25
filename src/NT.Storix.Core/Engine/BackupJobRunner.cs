@@ -435,6 +435,18 @@ public sealed class BackupJobRunner(
 
     private static void Cleanup(SourceSnapshot? snapshot, string staging, RunLog log)
     {
+        foreach (var resource in snapshot?.Resources ?? [])
+        {
+            try
+            {
+                resource.Dispose();
+            }
+            catch (Exception ex)
+            {
+                log.Warn($"Releasing {resource.GetType().Name} failed: {ex.Message}");
+            }
+        }
+
         try
         {
             foreach (var entry in snapshot?.Entries.Where(e => e.DeleteAfterRun) ?? [])

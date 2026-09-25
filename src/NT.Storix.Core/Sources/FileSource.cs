@@ -16,33 +16,83 @@ public sealed class FileSource(FileSourceOptions options) : IBackupSource
 
         var entries = new List<ArchiveEntry>();
         var usedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var paths = options.Paths.Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => Path.GetFullPath(Environment.ExpandEnvironmentVariables(p.Trim())))
+            .ToList();
+        var snapshots = options.UseVss ? CreateSnapshots(paths, context) : [];
 
-        foreach (var rawPath in options.Paths.Where(p => !string.IsNullOrWhiteSpace(p)))
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(rawPath.Trim()));
+            foreach (var path in paths)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            if (File.Exists(path))
-            {
-                entries.Add(new ArchiveEntry(path, UniqueRoot(Path.GetFileName(path), usedRoots), options.SkipLockedFiles));
-            }
-            else if (Directory.Exists(path))
-            {
-                var root = UniqueRoot(new DirectoryInfo(path).Name is { Length: > 0 } name ? name.TrimEnd(':') : "root", usedRoots);
-                foreach (var file in Enumerate(path, context))
+                // Read from the shadow copy when one exists for this volume.
+                var snapshot = snapshots.FirstOrDefault(s => path.StartsWith(s.Volume, StringComparison.OrdinalIgnoreCase));
+                var readPath = snapshot?.MapPath(path) ?? path;
+
+                if (File.Exists(readPath))
                 {
-                    var relative = Path.GetRelativePath(path, file).Replace('\\', '/');
-                    entries.Add(new ArchiveEntry(file, $"{root}/{relative}", options.SkipLockedFiles));
+                    entries.Add(new ArchiveEntry(readPath, UniqueRoot(Path.GetFileName(path), usedRoots), options.SkipLockedFiles));
+                }
+                else if (Directory.Exists(readPath))
+                {
+                    var root = UniqueRoot(new DirectoryInfo(path).Name is { Length: > 0 } name ? name.TrimEnd(':') : "root", usedRoots);
+                    foreach (var file in Enumerate(readPath, context))
+                    {
+                        var relative = Path.GetRelativePath(readPath, file).Replace('\\', '/');
+                        entries.Add(new ArchiveEntry(file, $"{root}/{relative}", options.SkipLockedFiles));
+                    }
+                }
+                else
+                {
+                    context.Log.Warn($"Path not found, skipped: {path}");
                 }
             }
-            else
+        }
+        catch
+        {
+            foreach (var snapshot in snapshots)
             {
-                context.Log.Warn($"Path not found, skipped: {path}");
+                snapshot.Dispose();
+            }
+
+            throw;
+        }
+
+        context.Log.Info($"Collected {entries.Count} file(s){(snapshots.Count > 0 ? " from shadow copies" : string.Empty)}.");
+        return Task.FromResult(new SourceSnapshot(entries) { Resources = snapshots });
+    }
+
+    private static List<IVolumeSnapshot> CreateSnapshots(IEnumerable<string> paths, SourceContext context)
+    {
+        var snapshots = new List<IVolumeSnapshot>();
+        if (!OperatingSystem.IsWindows())
+        {
+            context.Log.Warn("Volume Shadow Copy is only available on Windows; reading live files.");
+            return snapshots;
+        }
+
+        foreach (var volume in paths.Select(Path.GetPathRoot).Where(r => !string.IsNullOrEmpty(r)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (volume!.StartsWith(@"\\", StringComparison.Ordinal))
+            {
+                context.Log.Warn($"Volume Shadow Copy is not available for network paths ({volume}); reading live files.");
+                continue;
+            }
+
+            try
+            {
+                snapshots.Add(VolumeShadowCopy.Create(volume));
+                context.Log.Info($"Created a shadow copy of {volume}.");
+            }
+            catch (Exception ex)
+            {
+                context.Log.Warn($"Could not create a shadow copy of {volume} ({ex.Message}); reading live files.");
             }
         }
 
-        context.Log.Info($"Collected {entries.Count} file(s).");
-        return Task.FromResult(new SourceSnapshot(entries));
+        return snapshots;
     }
 
     private IEnumerable<string> Enumerate(string root, SourceContext context)

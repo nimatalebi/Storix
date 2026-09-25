@@ -11,6 +11,9 @@ public sealed record SourceSnapshot(IReadOnlyList<ArchiveEntry> Entries)
 {
     /// <summary>SQL Server backup metadata (LSNs) recorded for restore chains.</summary>
     public IReadOnlyList<SqlBackupInfo> SqlBackups { get; init; } = [];
+
+    /// <summary>Resources that must stay alive until the archive is written (e.g. VSS snapshots).</summary>
+    public IReadOnlyList<IDisposable> Resources { get; init; } = [];
 }
 
 public interface IBackupSource

@@ -57,6 +57,7 @@ Backup Agent
 | **Retention** | "Keep last N" and/or "delete older than N days", plus long-term GFS rules (keep daily/weekly/monthly/yearly), applied on every destination. The newest backup is never deleted. |
 | **Concurrent jobs** | Jobs run in parallel up to a global limit. The same job never runs twice at once. |
 | **Chunking** | Optionally split backups into volumes (`.part0001`, `.part0002`…) with a manifest. Each volume is uploaded and checked separately; after an interruption, only the missing volumes are uploaded again. |
+| **Open files (VSS)** | Optionally read files from a Volume Shadow Copy snapshot, so open and locked files (PST, databases, VM disks) are backed up consistently. |
 | **Large files** | Everything is streamed. ZIP64 is supported. No step loads a whole file into memory. |
 | **Crash recovery** | At startup, runs left in progress are marked *Interrupted* and leftover temporary files are removed. A scheduled run that was missed while the machine or service was off runs once at startup (can be turned off per job). The service restarts automatically if it fails. |
 | **Partial upload cleanup** | Leftover `.partial` files from interrupted runs are deleted from destinations. |

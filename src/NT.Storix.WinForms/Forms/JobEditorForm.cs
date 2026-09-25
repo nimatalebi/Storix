@@ -35,6 +35,7 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _fileExcludes = Ui.Multiline(70);
     private readonly CheckBox _fileRecursive = new() { Text = "Include subfolders", AutoSize = true };
     private readonly CheckBox _fileSkipLocked = new() { Text = "Skip locked files instead of failing", AutoSize = true };
+    private readonly CheckBox _fileVss = new() { Text = "Use Volume Shadow Copy (back up open and locked files consistently)", AutoSize = true };
     private readonly TextBox _sqlConnection = new();
     private readonly TextBox _sqlDatabases = Ui.Multiline(90);
     private readonly TextBox _sqlBackupDirectory = new();
@@ -251,6 +252,7 @@ internal sealed class JobEditorForm : Form
         grid.Row(null, new Label { Text = "Wildcards match file or folder names, e.g. *.tmp, *.log, node_modules, bin", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Row(null, _fileRecursive);
         grid.Row(null, _fileSkipLocked);
+        grid.Row(null, _fileVss);
         grid.Fill();
         return grid;
     }
@@ -472,6 +474,7 @@ internal sealed class JobEditorForm : Form
         _fileExcludes.Lines = files.ExcludePatterns.ToArray();
         _fileRecursive.Checked = files.IncludeSubdirectories;
         _fileSkipLocked.Checked = files.SkipLockedFiles;
+        _fileVss.Checked = files.UseVss;
 
         var sql = Job.Source.SqlServer;
         _sqlConnection.Text = sql.ConnectionString;
@@ -542,6 +545,7 @@ internal sealed class JobEditorForm : Form
         Job.Source.Files.ExcludePatterns = _fileExcludes.Lines();
         Job.Source.Files.IncludeSubdirectories = _fileRecursive.Checked;
         Job.Source.Files.SkipLockedFiles = _fileSkipLocked.Checked;
+        Job.Source.Files.UseVss = _fileVss.Checked;
 
         Job.Source.SqlServer.ConnectionString = NullIfEmpty(_sqlConnection.Text);
         Job.Source.SqlServer.Databases = _sqlDatabases.Lines();

@@ -32,7 +32,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Restore from a destination or a local folder (restore wizard in the manager)
 - [ ] Google Drive OAuth sign-in for personal "My Drive"
 - [x] Webhook notifications (JSON, HMAC-signed)
-- [ ] VSS snapshots for open and locked files
+- [x] VSS snapshots for open and locked files
 - [x] Dead man's switch: alert when a job has not succeeded for X hours; ping healthchecks.io / Uptime Kuma
 - [x] Scheduled restore drills (for SQL: restore to a temp database + `DBCC CHECKDB`; MongoDB: `mongorestore --dryRun`)
 - [x] SQL Server differential and log backups with chain tracking; point-in-time restore
