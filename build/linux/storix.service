@@ -1,0 +1,26 @@
+[Unit]
+Description=Storix backup agent
+Documentation=https://github.com/nimatalebi/Storix
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/opt/storix/Storix.Service
+WorkingDirectory=/opt/storix
+# Runs as root so it can read every file it is asked to back up; data, logs and the secret key live in /var/lib/storix.
+User=root
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Restart=on-failure
+RestartSec=30
+# Give running backups time to stop cleanly.
+TimeoutStopSec=60
+StateDirectory=storix
+StateDirectoryMode=0700
+UMask=0077
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

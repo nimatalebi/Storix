@@ -83,3 +83,25 @@ public class KeyManagementTests
         return (job, run);
     }
 }
+
+public class MachineSecretProtectorTests
+{
+    [Fact]
+    public void Secrets_round_trip_and_are_not_stored_in_plain_text()
+    {
+        using var temp = new TempDirectory();
+        var protector = new Security.MachineSecretProtector(temp.Combine("data", "secret.key"));
+
+        var stored = protector.Protect("p@ss");
+
+        Assert.NotEqual("p@ss", stored);
+        Assert.Equal("p@ss", protector.Unprotect(stored));
+        Assert.Equal(stored, protector.Protect(stored)); // Already protected: unchanged.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.StartsWith("aesgcm:", stored);
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(temp.Combine("data", "secret.key")));
+            Assert.Throws<System.Security.Cryptography.CryptographicException>(() => new Security.MachineSecretProtector(temp.Combine("other.key")).Unprotect(stored));
+        }
+    }
+}

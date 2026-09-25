@@ -21,7 +21,9 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = Host.CreateApplicationBuilder(args);
+    // Runs as a Windows service or a systemd unit (Type=notify); both are no-ops when started from a console.
     builder.Services.AddWindowsService(options => options.ServiceName = StorixPaths.ServiceName);
+    builder.Services.AddSystemd();
     builder.Services.AddSerilog();
     builder.Services.AddStorixCore();
     builder.Services.AddHostedService<StorixWorker>();

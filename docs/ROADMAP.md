@@ -97,5 +97,5 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ## P3: long term
 
 - [ ] Central management server (many agents, web dashboard, RBAC)
-- [ ] Linux agent (systemd)
+- [x] Linux agent (systemd)
 - [ ] Optional hosted storage

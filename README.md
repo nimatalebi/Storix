@@ -200,6 +200,19 @@ You can also install the service without the UI:
 
 The service runs as `LocalSystem`, uses *Automatic (Delayed Start)* and restarts automatically if it fails.
 
+### Linux agent (systemd)
+
+The service and the CLI also run on Linux (x64) as a headless agent; jobs are managed with the CLI (config as code: `storix apply`, `storix run`, `storix history`…). Sources that need Windows (VSS, SQL Server on Windows paths, Hyper-V, Windows system) are not available there.
+
+```sh
+tar -xzf storix-<version>-linux-x64.tar.gz
+sudo ./storix-<version>-linux-x64/install.sh      # installs to /opt/storix and starts storix.service
+sudo storix apply my-jobs.json                    # add jobs; ${env:NAME} placeholders keep secrets out of the file
+journalctl -u storix -f
+```
+
+Data, logs and the database live in `/var/lib/storix`. Secrets in the database are encrypted with AES-256-GCM using a random machine key (`/var/lib/storix/secret.key`, readable by root only). `sudo ./install.sh --uninstall` removes the program and keeps the data. Build the package yourself with `./build/package-linux.sh <version>`.
+
 ### Releases
 
 Push a tag like `v1.2.0` and the `release` workflow builds the MSI and the portable ZIP, then publishes a GitHub release.
@@ -344,7 +357,7 @@ With metrics enabled the service serves Prometheus text format at `http://localh
 
 ## Security notes
 
-- Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure.
+- Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure. On Linux they are encrypted with a root-only machine key instead (see *Linux agent*).
 - `%ProgramData%\Storix` should be writable by administrators only.
 - **Service → Run as account…** runs the service as Network Service, a dedicated user or a group Managed Service Account (gMSA). Storix grants only *Log on as a service*, Modify on its data folder and, optionally, Backup Operators membership.
 - **Settings → Ask for my Windows password…** requires Windows re-authentication before restores, deletions, exports with secrets and service changes. Failed confirmations are written to the audit log.

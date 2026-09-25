@@ -1,6 +1,6 @@
 namespace NT.Storix.Core;
 
-/// <summary>Well-known locations shared by the Windows service and the manager UI.</summary>
+/// <summary>Well-known locations shared by the service, the CLI and the manager UI.</summary>
 public static class StorixPaths
 {
     public const string ServiceName = "Storix";
@@ -16,6 +16,12 @@ public static class StorixPaths
             if (!string.IsNullOrWhiteSpace(overridden))
             {
                 return overridden;
+            }
+
+            // Linux: the usual place for service state (CommonApplicationData would be /usr/share).
+            if (OperatingSystem.IsLinux())
+            {
+                return "/var/lib/storix";
             }
 
             return Path.Combine(

@@ -59,3 +59,36 @@ jobs:
             artifacts/*.zip
             artifacts/*.exe
             artifacts/SHA256SUMS.txt
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${{ github.ref_name }}"; v="${v#v}"; else v="${{ inputs.version }}"; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: ./build/package-linux.sh "${{ steps.version.outputs.value }}" artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storix-${{ steps.version.outputs.value }}-linux
+          path: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS-linux.txt
+
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS-linux.txt
