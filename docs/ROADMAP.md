@@ -87,7 +87,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] First-run wizard
 
 ### Architecture and ecosystem
-- [ ] Named-pipe or gRPC API between the UI and the service (replaces database polling)
+- [x] Named-pipe API between the UI and the service (immediate requests and live status; the database queue remains as fallback)
 - [x] CLI: `storix jobs | run | history | cancel | drill | restore | verify | list-files | decrypt | export | import`
 - [x] Config as code (JSON job files with `${env:NAME}` secrets, `validate` and `apply` commands)
 - [ ] Plugin system for sources and destinations

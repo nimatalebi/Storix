@@ -336,6 +336,10 @@ The manager also offers **New from template** (SQL Server nightly to S3, log bac
 
 ---
 
+### Local API
+
+The service listens on a local named pipe (`\\.\pipe\Storix`; a Unix socket on Linux) that only administrators and SYSTEM (Linux: root) can open. The manager, the tray icon and the CLI use it to start, cancel and drill jobs immediately and to read what is running (`storix status`). Requests are still recorded in the database, so when the service is not reachable they are simply picked up at its next check.
+
 ### Updates
 
 Storix Manager checks the GitHub releases once a day (turn it off, or opt in to pre-releases, under **Settings → Updates**; **Help → Check for updates** checks now). **Download and install** downloads the MSI, checks it against the release's `SHA256SUMS.txt` and verifies its Authenticode signature: an invalid signature, or a signer other than the one of the installed version, is refused. Unsigned releases are only installed after you confirm. The service never updates itself.

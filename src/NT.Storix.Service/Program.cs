@@ -28,6 +28,7 @@ try
     builder.Services.AddStorixCore();
     builder.Services.AddHostedService<StorixWorker>();
     builder.Services.AddHostedService<MetricsServer>();
+    builder.Services.AddHostedService<PipeServer>();
 
     // Warnings and errors also go to the Windows Event Log (Application log, source "Storix").
     if (OperatingSystem.IsWindows())

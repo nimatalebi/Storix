@@ -29,7 +29,26 @@ public sealed class BackupScheduler(
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _cancellation = new();
     private SemaphoreSlim _slots = new(1);
 
+    private readonly ConcurrentDictionary<Guid, Ipc.RunningJob> _details = new();
+    private readonly SemaphoreSlim _wake = new(0, 1);
+
     public IReadOnlyCollection<Guid> RunningJobs => _running.Keys.ToList();
+
+    /// <summary>Running jobs with their start time and kind (backup, drill...).</summary>
+    public IReadOnlyList<Ipc.RunningJob> RunningDetails => _details.Values.OrderBy(r => r.StartedAt).ToList();
+
+    /// <summary>Processes queued requests now instead of at the next tick (used by the local API).</summary>
+    public void Wake()
+    {
+        try
+        {
+            _wake.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // A wake-up is already pending.
+        }
+    }
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
@@ -47,7 +66,6 @@ public sealed class BackupScheduler(
             logger.LogError(ex, "Missed-run catch-up failed.");
         }
 
-        using var timer = new PeriodicTimer(TickInterval);
         try
         {
             do
@@ -70,7 +88,7 @@ public sealed class BackupScheduler(
 
                 lastTick = now;
             }
-            while (await timer.WaitForNextTickAsync(stoppingToken));
+            while (await WaitForNextTickAsync(stoppingToken));
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -84,6 +102,13 @@ public sealed class BackupScheduler(
         }
 
         logger.LogInformation("Scheduler stopped.");
+    }
+
+    /// <summary>Waits for the next tick or for <see cref="Wake"/>. Ticks cover the time since the previous one, so extra ones are harmless.</summary>
+    private async Task<bool> WaitForNextTickAsync(CancellationToken stoppingToken)
+    {
+        await _wake.WaitAsync(TickInterval, stoppingToken);
+        return true;
     }
 
     /// <summary>Loads settings, sizes the concurrency limit and performs crash recovery.</summary>
@@ -200,6 +225,7 @@ public sealed class BackupScheduler(
 
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _cancellation[job.Id] = cancellation;
+        _details[job.Id] = new Ipc.RunningJob(job.Id, job.Name, DateTimeOffset.UtcNow, trigger);
 
         _ = Task.Run(async () =>
         {
@@ -225,6 +251,7 @@ public sealed class BackupScheduler(
                 }
 
                 _running.TryRemove(job.Id, out _);
+                _details.TryRemove(job.Id, out _);
                 _cancellation.TryRemove(job.Id, out _);
                 cancellation.Dispose();
                 completion.TrySetResult();

@@ -79,11 +79,11 @@ internal sealed class TrayIcon : IDisposable
         {
             var id = job.Id;
             var name = job.Name;
-            _runNow.DropDownItems.Add(name, null, (_, _) =>
+            _runNow.DropDownItems.Add(name, null, async (_, _) =>
             {
-                _services.Runs.RequestRun(id);
+                var immediate = await NT.Storix.Core.Ipc.ServiceRequests.SendAsync(_services.Runs, "run", id);
                 _services.Audit.Add("job.run", name);
-                _icon.ShowBalloonTip(5_000, "Storix", $"'{name}' was queued.", ToolTipIcon.Info);
+                _icon.ShowBalloonTip(5_000, "Storix", immediate ? $"'{name}' started." : $"'{name}' was queued.", ToolTipIcon.Info);
             });
         }
 

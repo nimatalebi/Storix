@@ -3,6 +3,7 @@ using System.ServiceProcess;
 using NT.Storix.Core;
 using NT.Storix.Core.Configuration;
 using NT.Storix.Core.Engine;
+using NT.Storix.Core.Ipc;
 using NT.Storix.Core.Models;
 using NT.Storix.Core.Monitoring;
 using NT.Storix.Core.Security;
@@ -445,16 +446,20 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void RunNow()
+    private async void RunNow()
     {
         if (SelectedJob is not { } job)
         {
             return;
         }
 
-        _services.Runs.RequestRun(job.Id);
+        var immediate = await ServiceRequests.SendAsync(_services.Runs, "run", job.Id);
         _services.Audit.Add("job.run", job.Name);
-        if (WindowsServiceManager.GetStatus() != ServiceControllerStatus.Running)
+        if (immediate)
+        {
+            Dialogs.Info(this, $"'{job.Name}' started. Follow it in the History tab.");
+        }
+        else if (WindowsServiceManager.GetStatus() != ServiceControllerStatus.Running)
         {
             Dialogs.Info(this, "The run was queued, but the Storix service is not running. It will start as soon as the service starts (see the Service tab).");
         }
@@ -462,6 +467,8 @@ internal sealed class MainForm : Form
         {
             Dialogs.Info(this, $"'{job.Name}' was queued and will start within a few seconds. Follow it in the History tab.");
         }
+
+        RefreshJobs();
     }
 
     private async void DryRunJob()
@@ -497,14 +504,14 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void RequestDrill()
+    private async void RequestDrill()
     {
         if (SelectedJob is not { } job)
         {
             return;
         }
 
-        _services.Runs.RequestDrill(job.Id);
+        await ServiceRequests.SendAsync(_services.Runs, "drill", job.Id);
         _services.Audit.Add("job.drill", job.Name);
         Dialogs.Info(this, WindowsServiceManager.GetStatus() == ServiceControllerStatus.Running
             ? $"A restore drill of '{job.Name}' was queued. The result appears in the History tab."
@@ -527,7 +534,7 @@ internal sealed class MainForm : Form
         RefreshJobs();
     }
 
-    private void CancelRun()
+    private async void CancelRun()
     {
         if (SelectedJob is not { } job)
         {
@@ -542,9 +549,9 @@ internal sealed class MainForm : Form
 
         if (Dialogs.Confirm(this, $"Cancel the running backup of '{job.Name}'?"))
         {
-            _services.Runs.RequestCancel(job.Id);
+            var immediate = await ServiceRequests.SendAsync(_services.Runs, "cancel", job.Id);
             _services.Audit.Add("job.cancel", job.Name);
-            Dialogs.Info(this, "Cancellation requested. The service stops the backup within a few seconds.");
+            Dialogs.Info(this, immediate ? "Cancellation sent. The backup stops at its next step." : "Cancellation requested. The service stops the backup within a few seconds.");
         }
     }
 

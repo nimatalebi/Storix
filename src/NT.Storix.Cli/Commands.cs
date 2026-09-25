@@ -2,6 +2,7 @@ using NT.Storix.Core;
 using NT.Storix.Core.Configuration;
 using NT.Storix.Core.Destinations;
 using NT.Storix.Core.Engine;
+using NT.Storix.Core.Ipc;
 using NT.Storix.Core.Models;
 using NT.Storix.Core.Persistence;
 using NT.Storix.Core.Processing;
@@ -28,6 +29,7 @@ internal static class Commands
             Use --password-env NAME to read the password from an environment variable.
 
         Jobs (uses the Storix database of this machine):
+          storix status                            Is the service running, and what is it doing
           storix jobs                              List jobs with schedule and last result
           storix history [job] [--limit N]         Recent runs
           storix run <job> [--wait] [--dry-run]    Queue a backup (processed by the service), or show a dry run
@@ -87,16 +89,18 @@ internal static class Commands
                 return await RunJobAsync(a, output);
             case "cancel":
                 var toCancel = FindJob(a.Required(0, "job name"));
-                Services.Runs.RequestCancel(toCancel.Id);
+                var cancelNow = await ServiceRequests.SendAsync(Services.Runs, "cancel", toCancel.Id);
                 Services.Audit.Add("job.cancel", toCancel.Name, "command line");
-                output.WriteLine("Cancellation requested.");
+                output.WriteLine(cancelNow ? "Cancellation sent." : "Cancellation requested.");
                 return 0;
             case "drill":
                 var toDrill = FindJob(a.Required(0, "job name"));
-                Services.Runs.RequestDrill(toDrill.Id);
+                var drillNow = await ServiceRequests.SendAsync(Services.Runs, "drill", toDrill.Id);
                 Services.Audit.Add("job.drill", toDrill.Name, "command line");
-                output.WriteLine("Restore drill queued; the service runs it within a few seconds.");
+                output.WriteLine(drillNow ? "Restore drill started." : "Restore drill queued; the service runs it within a few seconds.");
                 return 0;
+            case "status":
+                return await StatusAsync(output);
             case "export":
                 return Export(a, output);
             case "import":
@@ -220,6 +224,24 @@ internal static class Commands
         return 0;
     }
 
+    private static async Task<int> StatusAsync(TextWriter output)
+    {
+        var response = await StorixPipe.SendAsync(new PipeRequest { Command = "status" }, TimeSpan.FromSeconds(3));
+        if (response is null)
+        {
+            output.WriteLine("The Storix service is not reachable (not running, or no permission: run as administrator/root).");
+            return 1;
+        }
+
+        output.WriteLine($"Service {response.Version}: {(response.Running.Count == 0 ? "idle" : $"{response.Running.Count} running")}");
+        foreach (var running in response.Running)
+        {
+            output.WriteLine($"  {running.JobName}  {running.Kind}  since {running.StartedAt.ToLocalTime():HH:mm:ss}");
+        }
+
+        return 0;
+    }
+
     private static async Task<int> RunJobAsync(Arguments a, TextWriter output)
     {
         var job = FindJob(a.Required(0, "job name"));
@@ -230,9 +252,9 @@ internal static class Commands
         }
 
         var before = Services.Runs.GetLast(job.Id)?.Id;
-        Services.Runs.RequestRun(job.Id);
+        var started = await ServiceRequests.SendAsync(Services.Runs, "run", job.Id);
         Services.Audit.Add("job.run", job.Name, "command line");
-        output.WriteLine($"'{job.Name}' queued; the Storix service starts it within a few seconds.");
+        output.WriteLine(started ? $"'{job.Name}' started." : $"'{job.Name}' queued; the Storix service starts it within a few seconds.");
         if (!a.Flag("wait"))
         {
             return 0;
