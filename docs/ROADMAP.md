@@ -84,7 +84,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [ ] Prometheus metrics, Windows Event Log entries, OpenTelemetry
 - [ ] Persian (RTL) and English UI, dark mode
 - [x] Job templates and dry-run mode
-- [ ] First-run wizard
+- [x] First-run wizard
 
 ### Architecture and ecosystem
 - [ ] Named-pipe or gRPC API between the UI and the service (replaces database polling)

@@ -69,6 +69,7 @@ internal sealed class MainForm : Form
             RefreshServiceStatus();
             _timer.Start();
         };
+        Shown += (_, _) => ShowWelcomeIfFirstRun();
     }
 
     private static TabPage CreatePage(string title, Control content)
@@ -215,6 +216,42 @@ internal sealed class MainForm : Form
         }
 
         _jobs.EndUpdate();
+    }
+
+    private void ShowWelcomeIfFirstRun()
+    {
+        if (_jobList.Count > 0)
+        {
+            return;
+        }
+
+        using var welcome = new WelcomeForm(WindowsServiceManager.GetStatus() is not null);
+        if (welcome.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (welcome.InstallService)
+        {
+            ServiceAction(() =>
+            {
+                WindowsServiceManager.Install();
+                WindowsServiceManager.Start();
+            }, "installed and started");
+        }
+
+        switch (welcome.Choice)
+        {
+            case WelcomeChoice.Template when welcome.Template is { } template:
+                NewJob(template.Create());
+                break;
+            case WelcomeChoice.Blank:
+                NewJob();
+                break;
+            case WelcomeChoice.Import:
+                ImportConfiguration();
+                break;
+        }
     }
 
     private void NewJob(BackupJob? template = null)
