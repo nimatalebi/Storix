@@ -180,6 +180,7 @@ internal static class TranslationsFa
         ["Create key file..."] = "ساخت فایل کلید...",
         ["Recovery sheet..."] = "برگهٔ بازیابی...",
         ["Verify archive before uploading"] = "بررسی آرشیو پیش از آپلود",
+        ["Deduplicate: upload only new data in chunks (incremental forever)"] = "حذف داده‌های تکراری: فقط دادهٔ جدید آپلود شود (افزایشی دائمی)",
         ["Split into volumes of (MB, 0 = off)"] = "تقسیم به بخش‌های (مگابایت، ۰ = خاموش)",
         ["I have stored the password / key file in a safe place (e.g. printed recovery sheet)"] = "رمز عبور یا فایل کلید را در جای امنی نگه داشته‌ام (مثلاً برگهٔ بازیابی چاپی)",
         ["Keep the encryption password safe. Encrypted backups cannot be restored without it."] = "رمز رمزنگاری را امن نگه دارید. بدون آن پشتیبان‌های رمزشده بازیابی نمی‌شوند.",

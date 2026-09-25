@@ -25,6 +25,11 @@ public sealed partial class BackupJobRunner
             throw new InvalidOperationException($"'{sourceDefinition.Name}' has no backups of '{sourceJob.Name}' yet.");
         }
 
+        if (backups.Any(b => Dedup.DedupEngine.IsSnapshot(b.Name)))
+        {
+            throw new NotSupportedException($"'{sourceJob.Name}' uses deduplicated backups, which copy jobs do not support yet. Add the other destination to that job instead.");
+        }
+
         var expired = RetentionPlanner.SelectForDeletion(backups, job.Retention, DateTimeOffset.UtcNow).ToHashSet();
         var wanted = backups.Where(b => !expired.Contains(b)).OrderBy(b => b.CreatedAt).ToList();
         var newest = wanted[^1].Name;

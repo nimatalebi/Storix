@@ -154,6 +154,12 @@ public static partial class BackupNaming
             rest = rest[..^AesFileEncryptor.FileExtension.Length];
         }
 
+        // Deduplicated backups: the snapshot file is the backup (its chunks live in shared pack files).
+        if (rest.EndsWith(Dedup.DedupSnapshot.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            rest = rest[..^Dedup.DedupSnapshot.Extension.Length] + ".zip";
+        }
+
         if (rest.EndsWith(ArchiveBuilder.ZstdExtension, StringComparison.OrdinalIgnoreCase))
         {
             rest = rest[..^ArchiveBuilder.ZstdExtension.Length];
@@ -174,7 +180,7 @@ public static partial class BackupNaming
         return true;
     }
 
-    [GeneratedRegex(@"^(?<prefix>.+)_\d{8}_\d{6}(\.inc)?\.zip(\.zst)?(\.aes)?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?<prefix>.+)_\d{8}_\d{6}((\.inc)?\.zip(\.zst)?(\.aes)?|\.snap)$", RegexOptions.IgnoreCase)]
     private static partial Regex ArchiveName();
 
     [GeneratedRegex(@"^\.part\d{4,}$", RegexOptions.IgnoreCase)]

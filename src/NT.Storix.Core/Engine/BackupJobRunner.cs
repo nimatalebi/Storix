@@ -134,6 +134,13 @@ public sealed partial class BackupJobRunner(
             throw new InvalidOperationException("Nothing to back up: the source produced no files.");
         }
 
+        if (job.Processing.Deduplicate)
+        {
+            await CheckpointAsync(job, log, uploading: false, cancellationToken);
+            await DedupBackupAsync(job, run, snapshot, staging, log, cancellationToken);
+            return;
+        }
+
         // Fail early when the staging disk is obviously too small.
         var previousSize = runs.GetRecent(job.Id, 10).FirstOrDefault(r => r.Status == RunStatus.Succeeded && r.SizeBytes > 0)?.SizeBytes;
         FreeSpace.Ensure(staging, FreeSpace.EstimateStagingBytes(snapshot.Entries, previousSize, job.Processing.Encrypt), "the staging folder");
@@ -449,6 +456,16 @@ public sealed partial class BackupJobRunner(
             && string.IsNullOrEmpty(job.Processing.EncryptionPassword) && string.IsNullOrWhiteSpace(job.Processing.EncryptionKeyFile))
         {
             errors.Add("Encryption is enabled but no password or key file is set.");
+        }
+
+        if (job.Processing.Deduplicate && job.Processing.Encrypt && job.Processing.EncryptionMode == EncryptionMode.PublicKey)
+        {
+            errors.Add("Deduplication works with password encryption (or none), not with a public key.");
+        }
+
+        if (job.Processing.Deduplicate && job.Source.Kind == SourceKind.Files && job.Source.Files.Incremental)
+        {
+            errors.Add("Deduplicated backups are already incremental: turn off the incremental option.");
         }
 
         if (job.Processing.Encrypt && job.Processing.EncryptionMode == EncryptionMode.PublicKey)

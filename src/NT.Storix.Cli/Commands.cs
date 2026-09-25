@@ -144,7 +144,12 @@ internal static class Commands
         var path = a.Required(0, "backup file");
         var indexPath = path + BackupIndex.Extension;
         BackupIndex index;
-        if (File.Exists(indexPath))
+        if (NT.Storix.Core.Dedup.DedupEngine.IsSnapshot(path))
+        {
+            var snapshot = await NT.Storix.Core.Dedup.DedupSnapshot.ReadAsync(path, NT.Storix.Core.Dedup.DedupEngine.KeyCache(Secret(a)), CancellationToken.None);
+            index = snapshot.ToIndex(Path.GetFileName(path));
+        }
+        else if (File.Exists(indexPath))
         {
             index = await BackupIndex.ReadAsync(indexPath, Secret(a), CancellationToken.None);
         }

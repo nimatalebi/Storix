@@ -44,6 +44,25 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
             await using var target = destinationFactory.Create(destination);
             var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // Deduplicated backup: the snapshot plus the packs holding its chunks.
+            if (Dedup.DedupEngine.IsSnapshot(backupName))
+            {
+                var snapshotPath = Path.Combine(work, backupName);
+                status?.Report($"Downloading {backupName} from {destination.Name}...");
+                await target.DownloadAsync(backupName, snapshotPath, null, cancellationToken);
+                return await RestoreSnapshotAsync(snapshotPath, request, async (pack, ct) =>
+                {
+                    var local = Path.Combine(work, pack);
+                    if (!File.Exists(local))
+                    {
+                        status?.Report($"Downloading {pack}...");
+                        await target.DownloadAsync(pack, local, null, ct);
+                    }
+
+                    return local;
+                }, status, cancellationToken);
+            }
+
             // An incremental backup needs every backup back to its full one.
             var members = new[] { backupName }.AsEnumerable();
             if (BackupNaming.IsIncremental(backupName) && BackupNaming.PrefixOf(backupName) is { } prefix)
@@ -110,6 +129,16 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
     public static async Task<RestoreResult> RestoreFromFileAsync(string archivePath, RestoreRequest request, IProgress<string>? status, CancellationToken cancellationToken)
     {
         var folder = Path.GetDirectoryName(Path.GetFullPath(archivePath))!;
+        if (Dedup.DedupEngine.IsSnapshot(archivePath))
+        {
+            // The packs must be in the same folder as the snapshot (e.g. a local or network destination).
+            return await RestoreSnapshotAsync(archivePath, request, (pack, _) =>
+            {
+                var path = Path.Combine(folder, pack);
+                return File.Exists(path) ? Task.FromResult(path) : throw new FileNotFoundException($"Pack '{pack}' is missing next to the snapshot.", path);
+            }, status, cancellationToken);
+        }
+
         var logical = LogicalName(Path.GetFileName(archivePath));
         if (!BackupNaming.IsIncremental(logical) || BackupNaming.PrefixOf(logical) is not { } prefix)
         {
@@ -137,6 +166,23 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         }
 
         return new RestoreResult([.. files.Order(StringComparer.Ordinal)], bytes, verified);
+    }
+
+    private static async Task<RestoreResult> RestoreSnapshotAsync(
+        string snapshotPath, RestoreRequest request, Func<string, CancellationToken, Task<string>> fetchPack, IProgress<string>? status, CancellationToken cancellationToken)
+    {
+        var keysForSalt = Dedup.DedupEngine.KeyCache(string.IsNullOrEmpty(request.Password) ? null : request.Password);
+        status?.Report("Reading the snapshot...");
+        var snapshot = await Dedup.DedupSnapshot.ReadAsync(snapshotPath, keysForSalt, cancellationToken);
+        var salt = Dedup.DedupSnapshot.ReadSalt(snapshotPath);
+        var keys = salt.Length == 0 ? Dedup.DedupKeys.Plain : keysForSalt(salt)!;
+
+        status?.Report($"Restoring to {request.TargetDirectory}...");
+        var (files, bytes) = await Dedup.DedupEngine.RestoreAsync(snapshot, keys, fetchPack, request.TargetDirectory, request.Overwrite, request.Include, cancellationToken);
+        status?.Report($"Restored {files.Count} file(s).");
+
+        // Every file was checked against its SHA-256 while restoring.
+        return new RestoreResult(files, bytes, ChecksumVerified: true);
     }
 
     /// <summary>The backup name of an archive, manifest or volume file name.</summary>
@@ -242,6 +288,14 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         {
             await using var target = destinationFactory.Create(destination);
             var names = (await target.ListAsync(cancellationToken)).Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (Dedup.DedupEngine.IsSnapshot(backupName))
+            {
+                var snapshotPath = Path.Combine(work, backupName);
+                await target.DownloadAsync(backupName, snapshotPath, null, cancellationToken);
+                var snapshot = await Dedup.DedupSnapshot.ReadAsync(snapshotPath, Dedup.DedupEngine.KeyCache(secret), cancellationToken);
+                return snapshot.ToIndex(backupName);
+            }
+
             if (names.Contains(backupName + BackupIndex.Extension))
             {
                 var path = Path.Combine(work, backupName + BackupIndex.Extension);

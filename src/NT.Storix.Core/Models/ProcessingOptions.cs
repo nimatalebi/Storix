@@ -29,6 +29,12 @@ public sealed class ProcessingOptions
 
     public bool Encrypt { get; set; }
 
+    /// <summary>
+    /// Deduplicated backups: files are split into content-defined chunks and only chunks the destination does not
+    /// have yet are uploaded (incremental forever). Uses zstd; compression and volume settings are not used.
+    /// </summary>
+    public bool Deduplicate { get; set; }
+
     public EncryptionMode EncryptionMode { get; set; } = EncryptionMode.Password;
 
     [Secret]

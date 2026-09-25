@@ -63,6 +63,7 @@ internal sealed class JobEditorForm : Form
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
     private readonly TextBox _passwordConfirm = new() { UseSystemPasswordChar = true };
     private readonly CheckBox _verify = new() { Text = "Verify archive before uploading", AutoSize = true };
+    private readonly CheckBox _dedup = new() { Text = "Deduplicate: upload only new data in chunks (incremental forever)", AutoSize = true };
     private readonly TextBox _keyFile = new();
     private readonly ComboBox _encryptionMode = Ui.EnumCombo(EncryptionMode.Password);
     private readonly Label _publicKeyInfo = new() { AutoSize = true, ForeColor = SystemColors.GrayText, MaximumSize = new Size(600, 0) };
@@ -379,6 +380,7 @@ internal sealed class JobEditorForm : Form
             Ui.Button("Recovery sheet...", (_, _) => PrintRecoverySheet(), 140)));
         grid.Row(null, _recoveryConfirmed);
         grid.Row(null, _verify);
+        grid.Row(null, _dedup);
         grid.Row("Split into volumes of (MB, 0 = off)", _splitSize);
         grid.Row(null, new Label { Text = "Volumes are uploaded one by one; an interrupted upload continues with the next missing volume.", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Fill();
@@ -537,6 +539,7 @@ internal sealed class JobEditorForm : Form
         _password.Text = _passwordConfirm.Text = p.EncryptionPassword;
         _password.Enabled = _passwordConfirm.Enabled = p.Encrypt;
         _verify.Checked = p.VerifyArchive;
+        _dedup.Checked = p.Deduplicate;
         _keyFile.Text = p.EncryptionKeyFile;
         _encryptionMode.SelectedItem = p.EncryptionMode;
         _publicKeyPem = p.PublicKeyPem;
@@ -610,6 +613,7 @@ internal sealed class JobEditorForm : Form
         Job.Processing.Encrypt = _encrypt.Checked;
         Job.Processing.EncryptionPassword = _encrypt.Checked ? _password.Text : null;
         Job.Processing.VerifyArchive = _verify.Checked;
+        Job.Processing.Deduplicate = _dedup.Checked;
         Job.Processing.EncryptionKeyFile = _encrypt.Checked ? NullIfEmpty(_keyFile.Text) : null;
         Job.Processing.EncryptionMode = (EncryptionMode)_encryptionMode.SelectedItem!;
         Job.Processing.PublicKeyPem = _publicKeyPem;
