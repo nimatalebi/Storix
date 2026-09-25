@@ -19,6 +19,8 @@ public sealed class SourceFactory : ISourceFactory
         SourceKind.Redis => new RedisSource(definition.Redis),
         SourceKind.Sqlite => new SqliteSource(definition.Sqlite),
         SourceKind.WindowsSystem => new WindowsSystemSource(definition.WindowsSystem),
+        SourceKind.DockerVolumes => new DockerVolumesSource(definition.DockerVolumes),
+        SourceKind.HyperV => new HyperVSource(definition.HyperV),
         _ => throw new NotSupportedException($"Source kind {definition.Kind} is not supported."),
     };
 }

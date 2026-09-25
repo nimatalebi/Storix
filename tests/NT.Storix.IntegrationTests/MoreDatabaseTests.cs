@@ -129,3 +129,50 @@ internal static class ObjectExtensions
         return value;
     }
 }
+
+public class DockerVolumeTests
+{
+    [DockerFact]
+    public async Task Docker_volume_is_archived_and_restorable()
+    {
+        using var harness = new Harness();
+        var volume = "storix-it-" + Guid.NewGuid().ToString("N")[..8];
+        async Task<string> Docker(params string[] args)
+        {
+            var result = await ExternalTool.RunAsync("docker", args, null, "docker", CancellationToken.None);
+            Assert.True(result.ExitCode == 0, result.Output);
+            return result.Output;
+        }
+
+        await Docker("volume", "create", volume);
+        try
+        {
+            await Docker("run", "--rm", "-v", $"{volume}:/data", "alpine:3", "sh", "-c", "mkdir -p /data/app && echo hello > /data/app/greeting.txt");
+
+            var job = new BackupJob
+            {
+                Name = "volumes",
+                Source = { Kind = SourceKind.DockerVolumes, DockerVolumes = { Volumes = volume } },
+                Destinations = [new DestinationDefinition { Name = "Local", LocalFolder = { Path = harness.Dir("target") } }],
+            };
+            var run = await harness.BackupAsync(job);
+
+            var restored = Path.Combine(harness.Root, "restored");
+            await RestoreService.RestoreFromFileAsync(Path.Combine(harness.Root, "target", run.FileName!), new RestoreRequest(restored), null, CancellationToken.None);
+            var tar = Directory.GetFiles(restored, "*.tar", SearchOption.AllDirectories).Single();
+
+            using var reader = new System.Formats.Tar.TarReader(File.OpenRead(tar));
+            var names = new List<string>();
+            while (reader.GetNextEntry() is { } entry)
+            {
+                names.Add(entry.Name);
+            }
+
+            Assert.Contains(names, n => n.EndsWith("app/greeting.txt", StringComparison.Ordinal));
+        }
+        finally
+        {
+            await ExternalTool.RunAsync("docker", ["volume", "rm", "-f", volume], null, "docker", CancellationToken.None);
+        }
+    }
+}

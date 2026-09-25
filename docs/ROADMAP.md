@@ -64,7 +64,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 ### More sources
 - [x] PostgreSQL, MySQL/MariaDB, Redis, SQLite
 - [x] IIS configuration, registry keys, scheduled tasks, certificates
-- [ ] Docker volumes, Hyper-V VMs
+- [x] Docker volumes, Hyper-V VMs (Export-VM)
 
 ### More destinations
 - [x] Azure Blob, OneDrive/SharePoint, Dropbox, WebDAV/Nextcloud, SMB with explicit credentials (Backblaze B2 via S3 or rclone)

@@ -13,6 +13,8 @@ public enum SourceKind
     Sqlite,
     /// <summary>Windows configuration: IIS, registry keys, scheduled tasks, certificates.</summary>
     WindowsSystem,
+    DockerVolumes,
+    HyperV,
 }
 
 public sealed class SourceDefinition
@@ -35,6 +37,10 @@ public sealed class SourceDefinition
 
     public WindowsSystemSourceOptions WindowsSystem { get; set; } = new();
 
+    public DockerVolumesSourceOptions DockerVolumes { get; set; } = new();
+
+    public HyperVSourceOptions HyperV { get; set; } = new();
+
     /// <summary>Options object of the selected kind (for generic editors).</summary>
     public object ActiveOptions => Kind switch
     {
@@ -46,6 +52,8 @@ public sealed class SourceDefinition
         SourceKind.Redis => Redis,
         SourceKind.Sqlite => Sqlite,
         SourceKind.WindowsSystem => WindowsSystem,
+        SourceKind.DockerVolumes => DockerVolumes,
+        SourceKind.HyperV => HyperV,
         _ => throw new NotSupportedException($"Source kind {Kind} is not supported."),
     };
 }
@@ -205,4 +213,25 @@ public sealed class WindowsSystemSourceOptions
 
     [Category("Certificates"), Description("Comma-separated LocalMachine certificate stores to export (public certificates), e.g. My, WebHosting")]
     public string? CertificateStores { get; set; } = "My";
+}
+
+public sealed class DockerVolumesSourceOptions
+{
+    [Category("Tool"), Description("Full path to docker(.exe). Empty = on PATH.")]
+    public string? DockerPath { get; set; }
+
+    [Category("Backup"), Description("Comma-separated volume names.")]
+    public string? Volumes { get; set; }
+
+    [Category("Backup"), Description("Small image used to read the volumes (needs tar).")]
+    public string HelperImage { get; set; } = "alpine:3";
+
+    [Category("Backup"), Description("Containers to stop during the backup for consistency (comma-separated), started again afterwards.")]
+    public string? StopContainers { get; set; }
+}
+
+public sealed class HyperVSourceOptions
+{
+    [Category("Backup"), Description("Comma-separated virtual machine names. Running VMs are exported from a production checkpoint.")]
+    public string? VirtualMachines { get; set; }
 }

@@ -31,7 +31,9 @@ Backup Agent
 │   ├── MySQL / MariaDB (mysqldump)
 │   ├── Redis (RDB snapshot)
 │   ├── SQLite (online backup API)
-│   └── Windows system (IIS, registry, tasks, certificates)
+│   ├── Windows system (IIS, registry, tasks, certificates)
+│   ├── Docker volumes
+│   └── Hyper-V virtual machines
 │
 ├── Processing
 │   ├── Compression

@@ -716,6 +716,8 @@ internal sealed class JobEditorForm : Form
             SourceKind.Redis => "Requires redis-cli. Creates an RDB snapshot of the server.",
             SourceKind.Sqlite => "Databases are copied with SQLite's online backup API, so applications can keep using them.",
             SourceKind.WindowsSystem => "Backs up IIS configuration, registry keys, scheduled tasks and public certificates of this server.",
+            SourceKind.DockerVolumes => "Each volume is archived with tar by a short-lived helper container. Restore: docker run --rm -v VOLUME:/target -v FOLDER:/backup alpine tar -xf /backup/VOLUME.tar -C /target",
+            SourceKind.HyperV => "Virtual machines are exported with Export-VM (running VMs from a production checkpoint). Import them again with Import-VM.",
             _ => string.Empty,
         };
 
