@@ -82,13 +82,7 @@ Backup Agent
 
 ### Roadmap
 
-- [ ] Amazon S3 and S3-compatible storage (MinIO, Wasabi, R2…)
-- [ ] Chunked archives (split volumes) and chunked uploads
-- [ ] Volume Shadow Copy (VSS) for files that are open
-- [ ] More notification channels (Telegram, Slack, webhook)
-- [ ] Restore wizard in the manager
-- [ ] OAuth user sign-in for Google Drive (personal "My Drive")
-- [ ] Incremental / differential backups
+The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highlights: S3, chunked archives, VSS, restore wizard, a standalone restore CLI, more notification channels and incremental backups.
 
 ---
 
@@ -227,9 +221,28 @@ The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix
 
 ---
 
+## Feedback & contact
+
+Storix is a community project, and your feedback shapes what comes next.
+
+- **Bugs and feature requests:** [open an issue on GitHub](https://github.com/nimatalebi/Storix/issues/new)
+- **Questions and private feedback:** [nimatweb@gmail.com](mailto:nimatweb@gmail.com)
+- **In the app:** open **Help → Send feedback…**. It creates a GitHub issue or an e-mail with the Storix version and Windows version filled in. You review it before anything is sent.
+
+Please never include passwords, connection strings or encryption keys in an issue.
+
+## About
+
+Storix is built by the **Storix Contributors** and developed openly at
+**[github.com/nimatalebi/Storix](https://github.com/nimatalebi/Storix)**.
+The goal is a simple, dependable, fully open-source backup agent for Windows servers and workstations.
+Open **Help → About Storix** in the manager to see the version, the license and the project links.
+
+See the [roadmap](docs/ROADMAP.md) for what is planned next.
+
 ## Contributing
 
-Contributions are welcome: bug reports, ideas and pull requests.
+Contributions are welcome: bug reports, ideas and pull requests. Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 1. Fork the repository and create a branch.
 2. Keep the code style (see `.editorconfig`) and add tests for new behavior.
@@ -240,4 +253,4 @@ To add a new destination (for example S3), implement `IBackupDestination`, add i
 
 ## License
 
-Storix is released under the [MIT License](LICENSE). You are free to use, copy, modify and distribute it, including commercially.
+Storix is released under the [MIT License](LICENSE) by the Storix Contributors. You are free to use, copy, modify and distribute it, including commercially.

@@ -6,8 +6,11 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Product>Storix</Product>
-    <Company>Storix</Company>
-    <Copyright>Copyright (c) Storix contributors</Copyright>
+    <Company>Storix Contributors</Company>
+    <Authors>Storix Contributors</Authors>
+    <Copyright>Copyright (c) Storix Contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/nimatalebi/Storix</RepositoryUrl>
     <Version>1.0.0</Version>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>

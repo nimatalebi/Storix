@@ -95,8 +95,19 @@ internal sealed class MainForm : Form
         tools.DropDownItems.Add("Open &logs folder", null, (_, _) => OpenFolder(StorixPaths.LogsDirectory));
 
         var help = new ToolStripMenuItem("&Help");
-        help.DropDownItems.Add("&About", null, (_, _) => Dialogs.Info(this,
-            $"Storix {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}\n\nOpen-source backup agent for Windows.\nFiles, SQL Server and MongoDB to local folders, FTP, SFTP and Google Drive.\n\nReleased under the MIT License."));
+        help.DropDownItems.Add("Send &feedback...", null, (_, _) =>
+        {
+            using var form = new FeedbackForm();
+            form.ShowDialog(this);
+        });
+        help.DropDownItems.Add("Report a &bug", null, (_, _) => Links.Open(this, StorixInfo.NewIssueUrl));
+        help.DropDownItems.Add("&GitHub repository", null, (_, _) => Links.Open(this, StorixInfo.RepositoryUrl));
+        help.DropDownItems.Add(new ToolStripSeparator());
+        help.DropDownItems.Add("&About Storix", null, (_, _) =>
+        {
+            using var form = new AboutForm();
+            form.ShowDialog(this);
+        });
 
         menu.Items.AddRange([file, tools, help]);
         return menu;
