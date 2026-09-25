@@ -20,14 +20,17 @@ public class PluginTests
         public string? Unprotect(string? protectedText) => protectedText?.StartsWith("enc:", StringComparison.Ordinal) == true ? protectedText[4..] : protectedText;
     }
 
-    private static int LoadSample()
+    // Loaded once per test run. The folder is not deleted: Windows keeps a loaded plugin DLL locked.
+    private static readonly Lazy<int> Sample = new(() =>
     {
-        using var temp = new TempDirectory();
-        var folder = temp.Combine("plugins", "NT.Storix.Plugins.Sample");
+        var plugins = Path.Combine(Path.GetTempPath(), "storix-plugin-tests", Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(plugins, "NT.Storix.Plugins.Sample");
         Directory.CreateDirectory(folder);
         File.Copy(Path.Combine(AppContext.BaseDirectory, "sample-plugin", "NT.Storix.Plugins.Sample.dll"), Path.Combine(folder, "NT.Storix.Plugins.Sample.dll"));
-        return PluginRegistry.LoadFrom(temp.Combine("plugins"));
-    }
+        return PluginRegistry.LoadFrom(plugins);
+    });
+
+    private static int LoadSample() => Sample.Value;
 
     [Fact]
     public async Task Plugins_loaded_from_disk_back_up_and_restore()
