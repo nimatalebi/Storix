@@ -28,14 +28,14 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 - [x] Amazon S3 and S3-compatible destinations (MinIO, Wasabi, R2, B2) with provider presets
 - [ ] Chunked archives (split volumes) with chunk-level resume
-- [ ] Restore from a destination or a local folder (engine done; wizard in the manager pending)
+- [x] Restore from a destination or a local folder (restore wizard in the manager)
 - [ ] Google Drive OAuth sign-in for personal "My Drive"
 - [ ] Webhook notifications
 - [ ] VSS snapshots for open and locked files
 - [ ] Dead man's switch: alert when a job has not succeeded for X hours; ping healthchecks.io / Uptime Kuma
 - [ ] Scheduled restore drills (for SQL: restore to a temp database + `DBCC CHECKDB`)
 - [ ] SQL Server differential and log backups with chain tracking; point-in-time restore
-- [ ] Direct database restore from the UI (`RESTORE ... WITH MOVE`, `mongorestore`; engine done)
+- [x] Direct database restore from the UI (`RESTORE ... WITH MOVE`, `mongorestore`)
 - [ ] Bandwidth limit, allowed upload windows, pause on metered connections
 - [ ] Pre/post job hooks (PowerShell/cmd) with timeout and exit-code handling
 - [ ] Cancel or pause a running job from the UI

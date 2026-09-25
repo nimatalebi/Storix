@@ -199,11 +199,20 @@ Inside the ZIP: `files and folders`, `sqlserver/<db>.bak` or `mongodb/mongodb_<d
 
 ### Restoring
 
+In the manager, open **Tools → Restore backup…** (or click **Restore…** on the Jobs tab):
+
+1. Choose a job and a destination, click **Load backups** and pick one. Or choose a backup file on disk.
+2. Choose an empty target folder and enter the encryption password if the backup is encrypted.
+3. Click **Restore**. Storix downloads the backup, verifies the SHA-256 checksum, decrypts it and extracts it.
+4. If the backup contains databases, click **Restore database…**:
+   - SQL Server: `RESTORE DATABASE ... WITH MOVE` under a new name (or replacing the existing one).
+   - MongoDB: `mongorestore`, optionally into a different database.
+
+Without the manager:
+
 1. Check the file: `sha256sum -c file.zip.aes.sha256` (or `Get-FileHash` in PowerShell).
-2. If the file is encrypted: in the manager, open **Tools → Decrypt backup file…** to turn the `.zip.aes` file back into a `.zip`.
-3. Extract the ZIP, then:
-   - SQL Server: `RESTORE DATABASE [name] FROM DISK = 'path\to\db.bak' WITH ...`
-   - MongoDB: `mongorestore --archive=mongodb_<db>.archive`
+2. Decrypt `.zip.aes` files with **Tools → Decrypt backup file…**.
+3. Extract the ZIP, then use `RESTORE DATABASE` or `mongorestore --archive=...`.
 
 The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix.Core/Processing/AesFileEncryptor.cs):
 `"STRX" | version | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`.

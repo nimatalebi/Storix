@@ -85,6 +85,7 @@ internal sealed class MainForm : Form
         file.DropDownItems.Add("E&xit", null, (_, _) => Close());
 
         var tools = new ToolStripMenuItem("&Tools");
+        tools.DropDownItems.Add("&Restore backup...", null, (_, _) => OpenRestore());
         tools.DropDownItems.Add("&Decrypt backup file...", null, (_, _) =>
         {
             using var form = new DecryptForm();
@@ -135,6 +136,7 @@ internal sealed class MainForm : Form
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Enable / Disable", null, (_, _) => ToggleJob()));
         toolbar.Items.Add(new ToolStripButton("Run now", null, (_, _) => RunNow()));
+        toolbar.Items.Add(new ToolStripButton("Restore...", null, (_, _) => OpenRestore()));
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Refresh", null, (_, _) => RefreshJobs()));
 
@@ -275,6 +277,12 @@ internal sealed class MainForm : Form
         {
             Dialogs.Info(this, $"'{job.Name}' was queued and will start within a few seconds. Follow it in the History tab.");
         }
+    }
+
+    private void OpenRestore()
+    {
+        using var form = new RestoreForm(_services.Jobs.GetAll(), _services.Destinations, SelectedJob);
+        form.ShowDialog(this);
     }
 
     // ---------------------------------------------------------------- History
