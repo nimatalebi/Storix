@@ -168,7 +168,8 @@ internal sealed class PointInTimeRestoreForm : Form
                 {
                     var backup = plan[i];
                     var job = _jobs.Get(backup.JobId) ?? throw new InvalidOperationException($"The job that created {backup.ArchiveName} no longer exists.");
-                    var destination = job.Destinations.FirstOrDefault(d => d.Enabled) ?? throw new InvalidOperationException($"Job '{job.Name}' has no enabled destination.");
+                    var destination = DestinationCapabilities.FirstReadable(job.Destinations)
+                                      ?? throw new InvalidOperationException($"Job '{job.Name}' has no enabled destination Storix can restore from.");
                     var target = Path.Combine(folder, $"storix-pitr-{i:00}-{backup.Type}");
                     var secret = job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null;
                     await restore.RestoreFromDestinationAsync(destination, backup.ArchiveName!, new RestoreRequest(target, secret, Overwrite: true), status, CancellationToken.None);

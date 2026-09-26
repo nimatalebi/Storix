@@ -127,7 +127,8 @@ internal sealed class RestoreForm : Form
         _backups.Items.Clear();
         if (SelectedJob is { } job)
         {
-            _destination.Items.AddRange(job.Destinations.Cast<object>().ToArray());
+            // Archive-only destinations (Telegram) are restored from downloaded files instead.
+            _destination.Items.AddRange(job.Destinations.Where(d => DestinationCapabilities.CanRestore(d.Kind)).Cast<object>().ToArray());
             if (_destination.Items.Count > 0)
             {
                 _destination.SelectedIndex = 0;

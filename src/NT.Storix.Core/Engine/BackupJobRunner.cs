@@ -463,6 +463,11 @@ public sealed partial class BackupJobRunner(
             errors.Add("Deduplication works with password encryption (or none), not with a public key.");
         }
 
+        if (job.Processing.Deduplicate && job.Destinations.Any(d => d.Enabled && !DestinationCapabilities.CanRestore(d.Kind)))
+        {
+            errors.Add("Deduplicated backups need to read the destination: they cannot use Telegram (archive-only). Turn off deduplication or use another destination.");
+        }
+
         if (job.Processing.Deduplicate && job.Source.Kind == SourceKind.Files && job.Source.Files.Incremental)
         {
             errors.Add("Deduplicated backups are already incremental: turn off the incremental option.");

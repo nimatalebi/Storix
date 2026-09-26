@@ -129,6 +129,38 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
     public static async Task<RestoreResult> RestoreFromFileAsync(string archivePath, RestoreRequest request, IProgress<string>? status, CancellationToken cancellationToken)
     {
         var folder = Path.GetDirectoryName(Path.GetFullPath(archivePath))!;
+
+        // Parts downloaded from an archive-only destination (Telegram): name.001, name.002... are joined first.
+        if (TelegramParts(archivePath) is { } parts)
+        {
+            var joinFolder = CreateWorkDirectory();
+            try
+            {
+                var joined = Path.Combine(joinFolder, parts.Name);
+                status?.Report($"Joining {parts.Files.Count} part(s)...");
+                await using (var output = new FileStream(joined, FileMode.CreateNew, FileAccess.Write, FileShare.None, StreamCopy.BufferSize, useAsync: true))
+                {
+                    foreach (var part in parts.Files)
+                    {
+                        await using var input = new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.Read, StreamCopy.BufferSize, useAsync: true);
+                        await input.CopyToAsync(output, cancellationToken);
+                    }
+                }
+
+                var partSidecar = Path.Combine(folder, parts.Name + Checksum.SidecarExtension);
+                if (File.Exists(partSidecar))
+                {
+                    File.Copy(partSidecar, joined + Checksum.SidecarExtension);
+                }
+
+                return await RestoreFromFileAsync(joined, request, status, cancellationToken);
+            }
+            finally
+            {
+                TryDelete(joinFolder);
+            }
+        }
+
         if (Dedup.DedupEngine.IsSnapshot(archivePath))
         {
             // The packs must be in the same folder as the snapshot (e.g. a local or network destination).
@@ -183,6 +215,47 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
 
         // Every file was checked against its SHA-256 while restoring.
         return new RestoreResult(files, bytes, ChecksumVerified: true);
+    }
+
+    /// <summary>
+    /// For a file named <c>backup.zip.aes.002</c> (or .001...), the backup name and all its parts in order.
+    /// Null when the file is not a part or when a part is missing.
+    /// </summary>
+    internal static (string Name, IReadOnlyList<string> Files)? TelegramParts(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        var dot = fileName.LastIndexOf('.');
+        if (dot <= 0 || fileName.Length - dot != 4 || !fileName[(dot + 1)..].All(char.IsAsciiDigit))
+        {
+            return null;
+        }
+
+        var name = fileName[..dot];
+        var folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        var files = new List<string>();
+        for (var index = 1; index <= 999 && File.Exists(Path.Combine(folder, $"{name}.{index:D3}")); index++)
+        {
+            files.Add(Path.Combine(folder, $"{name}.{index:D3}"));
+        }
+
+        if (files.Count == 0)
+        {
+            return null;
+        }
+
+        // A gap (e.g. .003 without .002) means a part was not downloaded.
+        if (Directory.EnumerateFiles(folder, name + ".*").Count(f => TelegramPartIndex(f, name) > files.Count) > 0)
+        {
+            throw new FileNotFoundException($"A part of '{name}' is missing: download every part (.001, .002, ...) into the same folder.");
+        }
+
+        return (name, files);
+    }
+
+    private static int TelegramPartIndex(string path, string name)
+    {
+        var suffix = Path.GetFileName(path)[name.Length..];
+        return suffix.Length == 4 && suffix[0] == '.' && int.TryParse(suffix[1..], out var index) ? index : 0;
     }
 
     /// <summary>The backup name of an archive, manifest or volume file name.</summary>

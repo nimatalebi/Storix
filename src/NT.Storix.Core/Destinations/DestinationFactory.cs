@@ -26,3 +26,17 @@ public sealed class DestinationFactory : IDestinationFactory
         _ => throw new NotSupportedException($"Destination kind {definition.Kind} is not supported."),
     };
 }
+
+/// <summary>What Storix may do with a destination type.</summary>
+public static class DestinationCapabilities
+{
+    /// <summary>
+    /// False for archive-only destinations (Telegram/Bale): Storix only uploads there. Restores, drills, copy jobs
+    /// and deduplication use another destination; the files can still be downloaded by hand and restored from disk.
+    /// </summary>
+    public static bool CanRestore(DestinationKind kind) => kind != DestinationKind.Telegram;
+
+    /// <summary>The first enabled destination Storix can read backups from.</summary>
+    public static DestinationDefinition? FirstReadable(IEnumerable<DestinationDefinition> destinations) =>
+        destinations.FirstOrDefault(d => d.Enabled && CanRestore(d.Kind));
+}

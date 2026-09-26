@@ -38,6 +38,18 @@ internal sealed class FakeTelegram : HttpMessageHandler
 
     public int Messages => _messages.Count;
 
+    /// <summary>What a user gets by downloading every document of the chat in the Telegram app.</summary>
+    public void DownloadAllTo(string folder)
+    {
+        Directory.CreateDirectory(folder);
+        foreach (var (fileName, data) in _messages.Values.Where(m => m.FileName != TelegramCatalog.FileName))
+        {
+            File.WriteAllBytes(Path.Combine(folder, fileName), data);
+        }
+    }
+
+    public byte[] Document(string fileName) => _messages.Values.Single(m => m.FileName == fileName).Data;
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var url = request.RequestUri!.ToString();
@@ -162,24 +174,55 @@ public class TelegramTests
         new() { BotToken = FakeTelegram.Token, ChatId = "-100", ApiBaseUrl = baseUrl, RelayKey = relayKey, PartSizeMb = partMb };
 
     [Fact]
-    public async Task Large_files_are_sent_in_parts_listed_and_downloaded_intact()
+    public async Task Large_files_are_sent_in_parts_and_listed()
     {
         using var temp = new TempDirectory();
         var fake = new FakeTelegram();
-        var data = RandomNumberGenerator.GetBytes(45 * 1024 * 1024 + 123);
+        var data = RandomNumberGenerator.GetBytes(2 * 1024 * 1024 + 123);
         File.WriteAllBytes(temp.Combine("backup.zip.aes"), data);
-        await using var destination = new TelegramDestination(Options(), http: new HttpClient(fake), cacheFolder: temp.Combine("cache"));
+        await using var destination = new TelegramDestination(Options(partMb: 1), http: new HttpClient(fake), cacheFolder: temp.Combine("cache"));
 
         await destination.TestAsync(CancellationToken.None);
         await destination.UploadAsync(temp.Combine("backup.zip.aes"), "backup.zip.aes", null, CancellationToken.None);
 
-        Assert.Contains("backup.zip.aes.001", fake.FileNames);
-        Assert.Contains("backup.zip.aes.003", fake.FileNames);
+        Assert.Equal(data, fake.Document("backup.zip.aes.001").Concat(fake.Document("backup.zip.aes.002")).Concat(fake.Document("backup.zip.aes.003")).ToArray());
         var listed = Assert.Single(await destination.ListAsync(CancellationToken.None));
         Assert.Equal(("backup.zip.aes", (long)data.Length), (listed.Name, listed.Size));
+    }
 
-        await destination.DownloadAsync("backup.zip.aes", temp.Combine("down.bin"), null, CancellationToken.None);
-        Assert.Equal(data, File.ReadAllBytes(temp.Combine("down.bin")));
+    [Fact]
+    public async Task Default_part_size_fits_the_50_MB_upload_limit_and_small_files_are_not_split()
+    {
+        using var temp = new TempDirectory();
+        var fake = new FakeTelegram();
+        File.WriteAllBytes(temp.Combine("a.zip"), RandomNumberGenerator.GetBytes(3 * 1024 * 1024));
+        await using var destination = new TelegramDestination(Options(), http: new HttpClient(fake), cacheFolder: temp.Combine("cache"));
+
+        await destination.UploadAsync(temp.Combine("a.zip"), "a.zip", null, CancellationToken.None);
+
+        Assert.True(new TelegramOptions().PartSizeMb * 1024L * 1024 < 50_000_000);
+        Assert.Contains("a.zip", fake.FileNames);
+    }
+
+    [Fact]
+    public async Task Telegram_is_archive_only()
+    {
+        using var temp = new TempDirectory();
+        var fake = new FakeTelegram();
+        temp.WriteFile("a.txt", "a");
+        await using var destination = new TelegramDestination(Options(), http: new HttpClient(fake), cacheFolder: temp.Combine("c"));
+        await destination.UploadAsync(temp.Combine("a.txt"), "a.txt", null, CancellationToken.None);
+
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => destination.DownloadAsync("a.txt", temp.Combine("b.txt"), null, CancellationToken.None));
+
+        Assert.Contains("archive-only", error.Message);
+        Assert.False(DestinationCapabilities.CanRestore(DestinationKind.Telegram));
+        var telegramOnly = new[] { new DestinationDefinition { Kind = DestinationKind.Telegram } };
+        Assert.Null(DestinationCapabilities.FirstReadable(telegramOnly));
+        var both = new[] { new DestinationDefinition { Kind = DestinationKind.Telegram }, new DestinationDefinition { Name = "NAS" } };
+        Assert.Equal("NAS", DestinationCapabilities.FirstReadable(both)!.Name);
+        var dedup = new BackupJob { Source = { Files = { Paths = ["/x"] } }, Processing = { Deduplicate = true }, Destinations = [.. telegramOnly] };
+        Assert.Contains(BackupJobRunner.GetValidationErrors(dedup), e => e.Contains("archive-only"));
     }
 
     [Fact]
@@ -227,8 +270,8 @@ public class TelegramTests
 
         fake.RateLimitNextCalls = 1;
         await destination.UploadAsync(temp.Combine("a.txt"), "a.txt", null, CancellationToken.None);
-        await destination.DownloadAsync("a.txt", temp.Combine("b.txt"), null, CancellationToken.None);
-        Assert.Equal("via relay", File.ReadAllText(temp.Combine("b.txt")));
+        Assert.Equal("via relay", Encoding.UTF8.GetString(fake.Document("a.txt")));
+        Assert.Single(await destination.ListAsync(CancellationToken.None));
 
         await using var wrongKey = new TelegramDestination(Options("https://relay.example.workers.dev", "nope"), http: new HttpClient(fake), cacheFolder: temp.Combine("c2"));
         var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => wrongKey.ListAsync(CancellationToken.None));
@@ -261,23 +304,63 @@ public class TelegramTests
         var database = new StorixDatabase(temp.Combine("s.db"));
         var settings = new SettingsRepository(database, new PlainProtector());
         settings.Save(new AppSettings { StagingDirectory = temp.Combine("staging") });
-        temp.WriteFile("src/report.txt", "quarterly numbers");
+        var binary = RandomNumberGenerator.GetBytes(2 * 1024 * 1024);
+        Directory.CreateDirectory(temp.Combine("src"));
+        File.WriteAllBytes(temp.Combine("src", "big.bin"), binary);
         var job = new BackupJob
         {
             Name = "To Telegram",
             Source = { Files = { Paths = [temp.Combine("src")] } },
             Processing = { Encrypt = true, EncryptionPassword = "pw" },
-            Destinations = [new DestinationDefinition { Name = "Telegram", Kind = DestinationKind.Telegram, Telegram = Options() }],
+            Destinations = [new DestinationDefinition { Name = "Telegram", Kind = DestinationKind.Telegram, Telegram = Options(partMb: 1) }],
         };
         var factory = new TestFactory(fake, temp.Combine("cache"));
         var runner = new BackupJobRunner(new RunRepository(database), settings, new SourceFactory(), factory, Array.Empty<INotifier>(), NullLogger<BackupJobRunner>.Instance);
 
         var run = await runner.RunAsync(job, RunTrigger.Manual, CancellationToken.None);
-
         Assert.True(run.Status == RunStatus.Succeeded, run.Log);
-        var restore = new RestoreService(factory);
-        await restore.RestoreFromDestinationAsync(job.Destinations[0], run.FileName!, new RestoreRequest(temp.Combine("r"), "pw"), null, CancellationToken.None);
-        Assert.Equal("quarterly numbers", File.ReadAllText(temp.Combine("r", "src", "report.txt")));
+
+        // Disaster: the user downloads the files from the chat and restores from disk; the parts are joined.
+        fake.DownloadAllTo(temp.Combine("downloads"));
+        Assert.True(File.Exists(temp.Combine("downloads", run.FileName + ".002")));
+        var result = await RestoreService.RestoreFromFileAsync(temp.Combine("downloads", run.FileName + ".001"), new RestoreRequest(temp.Combine("r"), "pw"), null, CancellationToken.None);
+        Assert.True(result.ChecksumVerified);
+        Assert.Equal(binary, File.ReadAllBytes(temp.Combine("r", "src", "big.bin")));
+
+        // A missing part is reported clearly.
+        File.Delete(temp.Combine("downloads", run.FileName + ".002"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => RestoreService.RestoreFromFileAsync(temp.Combine("downloads", run.FileName + ".001"), new RestoreRequest(temp.Combine("r2"), "pw"), null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Restore_drill_uses_the_other_destination()
+    {
+        using var temp = new TempDirectory();
+        var fake = new FakeTelegram();
+        var database = new StorixDatabase(temp.Combine("s.db"));
+        var settings = new SettingsRepository(database, new PlainProtector());
+        settings.Save(new AppSettings { StagingDirectory = temp.Combine("staging") });
+        temp.WriteFile("src/a.txt", "a");
+        var job = new BackupJob
+        {
+            Name = "Two places",
+            Source = { Files = { Paths = [temp.Combine("src")] } },
+            Destinations =
+            [
+                new DestinationDefinition { Name = "Telegram", Kind = DestinationKind.Telegram, Telegram = Options() },
+                new DestinationDefinition { Name = "NAS", LocalFolder = { Path = temp.Combine("nas") } },
+            ],
+        };
+        var factory = new MixedFactory(fake, temp.Combine("cache"));
+        var runs = new RunRepository(database);
+        var runner = new BackupJobRunner(runs, settings, new SourceFactory(), factory, Array.Empty<INotifier>(), NullLogger<BackupJobRunner>.Instance);
+        Assert.Equal(RunStatus.Succeeded, (await runner.RunAsync(job, RunTrigger.Manual, CancellationToken.None)).Status);
+
+        var drills = new RestoreDrillRunner(runs, settings, factory, Array.Empty<INotifier>(), NullLogger<RestoreDrillRunner>.Instance);
+        var drill = await drills.RunAsync(job, CancellationToken.None);
+
+        Assert.True(drill.Status == RunStatus.Succeeded, drill.Log);
+        Assert.Contains("NAS", drill.Log);
     }
 
     [Fact]
@@ -296,6 +379,13 @@ public class TelegramTests
         public string? Protect(string? plainText) => plainText;
 
         public string? Unprotect(string? protectedText) => protectedText;
+    }
+
+    private sealed class MixedFactory(FakeTelegram fake, string cache) : IDestinationFactory
+    {
+        public IBackupDestination Create(DestinationDefinition definition) => definition.Kind == DestinationKind.Telegram
+            ? new TelegramDestination(definition.Telegram, definition.MaxUploadKBps, new HttpClient(fake), cache)
+            : new DestinationFactory().Create(definition);
     }
 
     private sealed class TestFactory(FakeTelegram fake, string cache) : IDestinationFactory

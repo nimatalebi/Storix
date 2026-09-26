@@ -30,7 +30,8 @@ public sealed class RestoreDrillRunner(
 
         try
         {
-            var destination = job.Destinations.FirstOrDefault(d => d.Enabled) ?? throw new InvalidOperationException("The job has no enabled destination.");
+            var destination = DestinationCapabilities.FirstReadable(job.Destinations)
+                              ?? throw new InvalidOperationException("The job has no enabled destination Storix can restore from (Telegram is archive-only).");
             var restore = new RestoreService(destinationFactory);
             log.Info($"Restore drill started (destination '{destination.Name}').");
 

@@ -43,8 +43,10 @@ public sealed class TelegramCatalog
 }
 
 /// <summary>
-/// Stores backups as documents in a Telegram (or Bale) channel or group. Files are sent in parts (19 MB by default,
-/// because bots can only download files up to 20 MB from the official API) and listed in a pinned catalog.
+/// Stores backups as documents in a Telegram (or Bale) channel or group: an archive-only copy for disasters.
+/// Files larger than the part size (47 MB, under the 50 MB upload limit) are sent as name.001, name.002...
+/// and every file is listed in a pinned catalog, which retention uses. Storix does not restore from Telegram:
+/// the files are downloaded in the Telegram app and restored from disk (parts are joined automatically).
 /// A relay (Cloudflare Worker, local Bot API server) can be used when the server cannot reach the API directly.
 /// </summary>
 public sealed class TelegramDestination : IBackupDestination
@@ -142,27 +144,14 @@ public sealed class TelegramDestination : IBackupDestination
         }
     }
 
-    public async Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken)
-    {
-        var (catalog, _) = await LoadCatalogAsync(cancellationToken);
-        if (!catalog.Files.TryGetValue(remoteName, out var entry))
-        {
-            throw new FileNotFoundException($"'{remoteName}' is not in the Telegram catalog.");
-        }
-
-        await using var output = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None, StreamCopy.BufferSize, useAsync: true);
-        foreach (var part in entry.Parts)
-        {
-            var before = output.Position;
-            await _api.DownloadAsync(part.FileId, output, TimeSpan.FromMinutes(30), cancellationToken);
-            if (output.Position - before != part.Size)
-            {
-                throw new IOException($"A part of '{remoteName}' has the wrong size ({output.Position - before} instead of {part.Size} bytes).");
-            }
-
-            progress?.Report(output.Position);
-        }
-    }
+    /// <summary>
+    /// Telegram is an archive-only destination: Storix does not restore from it (bots can only download files up
+    /// to 20 MB). Download the files in the Telegram app and restore them from disk.
+    /// </summary>
+    public Task DownloadAsync(string remoteName, string localPath, IProgress<long>? progress, CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Telegram is an archive-only destination. Download the backup files (all parts .001, .002... and the .sha256) from the chat " +
+            "in the Telegram app, then use Restore → From a backup file (or 'storix restore <file>').");
 
     public async Task DeleteAsync(string remoteName, CancellationToken cancellationToken)
     {

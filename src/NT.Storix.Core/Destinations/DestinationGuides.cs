@@ -269,6 +269,8 @@ public static class DestinationGuides
               "اگر این سرور به تلگرام دسترسی ندارد: Worker رله را از پوشهٔ tools/telegram-relay روی Cloudflare مستقر کنید، ApiBaseUrl را نشانی آن و RelayKey را همان RELAY_KEY بگذارید."),
             T("Turn on encryption in the job (anyone in the channel can download the files). Click Test connection.",
               "رمزنگاری کار را روشن کنید (هر عضو کانال می‌تواند فایل‌ها را دانلود کند). سپس «آزمایش اتصال»."),
+            T("Telegram is an archive-only copy: add a second destination (NAS, S3...) for normal restores and drills. To restore from Telegram, download all parts (.001, .002... and .sha256) in the Telegram app into one folder and use Restore → From a backup file on the .001 file.",
+              "تلگرام فقط یک نسخهٔ آرشیوی است: برای بازیابی عادی و آزمایش بازیابی یک مقصد دوم (NAS، S3 و...) اضافه کنید. برای بازیابی از تلگرام، همهٔ بخش‌ها (‎.001، ‎.002... و ‎.sha256) را در برنامهٔ تلگرام در یک پوشه دانلود کنید و از «بازیابی ← از فایل پشتیبان» فایل ‎.001 را انتخاب کنید."),
         ],
         [
             L("@BotFather", "@BotFather", "https://t.me/BotFather"),

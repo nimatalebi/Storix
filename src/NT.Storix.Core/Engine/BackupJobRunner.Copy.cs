@@ -116,6 +116,11 @@ public sealed partial class BackupJobRunner
         var destination = string.IsNullOrWhiteSpace(options.FromDestination)
             ? sourceJob.Destinations.FirstOrDefault(d => d.Enabled)
             : sourceJob.Destinations.FirstOrDefault(d => string.Equals(d.Name, options.FromDestination.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (destination is not null && !DestinationCapabilities.CanRestore(destination.Kind))
+        {
+            throw new InvalidOperationException($"'{destination.Name}' is archive-only (Telegram): copy jobs need a destination Storix can read from.");
+        }
+
         return (sourceJob, destination ?? throw new InvalidOperationException($"'{sourceJob.Name}' has no destination '{options.FromDestination}'."));
     }
 

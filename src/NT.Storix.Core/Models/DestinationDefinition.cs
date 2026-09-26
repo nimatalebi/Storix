@@ -283,8 +283,8 @@ public sealed class TelegramOptions
     [Category("Connection"), Description("Shared key sent to the relay in the X-Storix-Relay-Key header (set the same RELAY_KEY on the worker)."), PasswordPropertyText(true), Secret]
     public string? RelayKey { get; set; }
 
-    [Category("Connection"), Description("Files are sent in parts of this size. Keep 19 MB for the official API (bots can only download files up to 20 MB); a local Bot API server allows up to 2000.")]
-    public int PartSizeMb { get; set; } = 19;
+    [Category("Connection"), Description("Files larger than this are sent in parts (name.001, name.002...). The official Bot API accepts up to 50 MB per file, so keep 47; a local Bot API server allows up to 2000.")]
+    public int PartSizeMb { get; set; } = 47;
 }
 
 public sealed class DropboxOptions

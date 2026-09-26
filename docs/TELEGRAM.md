@@ -24,25 +24,33 @@ In the job editor: **Destinations → Add… → Telegram**, then set:
 | Chat id | e.g. `-1001234567890` |
 | API base URL | empty for direct access, or your relay URL (see below) |
 | Relay key | the relay's `RELAY_KEY` when you use a relay |
-| Part size (MB) | `19` (see *Limits*) |
+| Part size (MB) | `47` (keep it under the 50 MB upload limit) |
 
 Click **Test connection**.
 
 ## How it works
 
-- Every file is sent as one or more documents (`name.001`, `name.002`, … for larger files), without notification.
+- Telegram is an **archive-only** copy, meant for disasters: Storix uploads to it and applies retention, but it
+  never downloads from it. Normal restores, restore drills, copy jobs and deduplication use the job's other
+  destinations, so give such jobs a second destination (NAS, S3, ...).
+- Files up to 47 MB are sent as one document. Larger files are sent as `name.001`, `name.002`, … (the official
+  Bot API accepts uploads up to 50 MB), without notification.
 - Bots cannot read the history of a chat, so Storix keeps a small **catalog** (`storix-catalog.json`) with the
-  list of files and their message ids. It is sent to the chat and **pinned**. Another computer with the same
-  bot token and chat id finds it again, which means you can restore after losing the server. Do not unpin it.
-  A copy of its location is also kept on the Storix machine.
-- Retention deletes old backups from the catalog and deletes their messages.
+  list of files and their message ids, sent to the chat and **pinned**. Retention uses it to delete old backups
+  (their messages are deleted too). Do not unpin it.
 - One Storix installation per chat: jobs on the same machine can share a chat, but two machines writing to the same
   chat can overwrite each other's catalog.
 
+## Restoring from Telegram
+
+1. In the Telegram app (desktop or phone), download all files of the backup into one folder: every part
+   (`.001`, `.002`, …) and the `.sha256` file. The app has no 20 MB limit.
+2. In Storix Manager: **Restore → From a backup file**, choose the `.001` file (or the file itself when there are
+   no parts). Storix joins the parts, checks the SHA-256 and restores. Without the manager:
+   `storix restore backup.zip.aes.001 --to D:\restore --password-env STORIX_PW`.
+
 ## Limits
 
-- The official Bot API accepts uploads up to 50 MB, but **bots can only download files up to 20 MB**. That is why
-  parts are 19 MB: every backup can also be restored through the bot.
 - With your own [local Bot API server](https://github.com/tdlib/telegram-bot-api), point *API base URL* at it and
   raise the part size (up to 2000 MB).
 - Telegram rate limits (HTTP 429) are respected automatically.
@@ -51,7 +59,7 @@ Click **Test connection**.
 
 If `api.telegram.org` is blocked or unreachable from the server, run the relay in
 [`tools/telegram-relay`](../tools/telegram-relay) on Cloudflare Workers (the free plan is enough: requests of up
-to 100 MB, 100,000 requests a day). The relay only forwards Bot API calls, stores nothing and refuses requests
+to 100 MB, 100,000 requests a day; parts are at most 47 MB). The relay only forwards Bot API calls, stores nothing and refuses requests
 without the shared key.
 
 **With the Cloudflare dashboard:**
