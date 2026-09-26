@@ -29,6 +29,19 @@ public class TemplateTests
     }
 
     [Fact]
+    public void Template_tags_describe_when_what_where_and_protection()
+    {
+        var website = JobTemplate.All.Single(t => t.Name == "Website to NAS + Telegram archive").Create();
+
+        Assert.Equal(["Daily 02:00", "Files", "Folder / NAS", "Telegram", "Encrypted"], TemplateTags.For(website, persian: false));
+        Assert.Equal(["روزانه ۰۲:۰۰", "فایل‌ها", "پوشه / NAS", "تلگرام", "رمزنگاری"], TemplateTags.For(website, persian: true));
+        var log = JobTemplate.All.Single(t => t.Name.Contains("3/3")).Create();
+        Assert.Contains("Hourly", TemplateTags.For(log, false));
+        Assert.Contains("Deduplicated", TemplateTags.For(JobTemplate.All.Single(t => t.Name.StartsWith("Large folders")).Create(), false));
+        Assert.All(JobTemplate.All, t => Assert.InRange(TemplateTags.For(t.Create(), false).Count, 3, 7));
+    }
+
+    [Fact]
     public void Batch_creates_one_job_per_item_with_staggered_times_and_shared_destination()
     {
         var drive = new DestinationDefinition { Name = "Google Drive", Kind = DestinationKind.GoogleDrive };

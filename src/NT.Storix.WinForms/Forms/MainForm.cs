@@ -321,26 +321,16 @@ internal sealed class MainForm : Form
             }
         };
 
-        // New: several jobs at once, an empty job, or one of the templates (grouped by category).
+        // New: the template gallery; the arrow offers the same three starting points directly.
+        _templateMenu.Items.Add(new ToolStripMenuItem("From a template...", Glyphs.Icon(Glyphs.Template), (_, _) => NewFromGallery()) { Font = new Font(Font, FontStyle.Bold) });
         _templateMenu.Items.Add(new ToolStripMenuItem("Set up several backups at once...", Glyphs.Icon(Glyphs.Add), (_, _) => NewBatch())
         {
             ToolTipText = "Websites, databases or folders: one job each, same destination and schedule",
-            Font = new Font(Font, FontStyle.Bold),
         });
-        _templateMenu.Items.Add(new ToolStripSeparator());
-        foreach (var group in NT.Storix.Core.Configuration.JobTemplate.All.GroupBy(t => t.Category))
-        {
-            var category = new ToolStripMenuItem(group.Key, Glyphs.Icon(Glyphs.Template));
-            foreach (var template in group)
-            {
-                category.DropDownItems.Add(new ToolStripMenuItem(template.Name, null, (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
-            }
-
-            _templateMenu.Items.Add(category);
-        }
+        _templateMenu.Items.Add(new ToolStripMenuItem("Empty job", Glyphs.Icon(Glyphs.Edit), (_, _) => NewJob()));
 
         var newButton = new ToolStripSplitButton("New", Glyphs.Icon(Glyphs.Add)) { ToolTipText = "New backup job (Ctrl+N)", DropDown = _templateMenu };
-        newButton.ButtonClick += (_, _) => NewJob();
+        newButton.ButtonClick += (_, _) => NewFromGallery();
 
         _jobEdit = ToolButton("Edit", Glyphs.Edit, EditJob, "Edit the selected job (Enter)");
         _jobRun = ToolButton("Run now", Glyphs.Play, RunNow, "Start a backup now (Ctrl+R)");
@@ -400,8 +390,7 @@ internal sealed class MainForm : Form
         _emptyText.Font = new Font(Font.FontFamily, Font.Size + 3);
         var create = Ui.Button("Create a backup job", (_, _) => NewJob(), 190);
         var several = Ui.Button("Several at once...", (_, _) => NewBatch(), 190);
-        var template = Ui.Button("Start from a template ▾", (_, _) => { }, 190);
-        template.Click += (_, _) => _templateMenu.Show(template, new Point(0, template.Height));
+        var template = Ui.Button("Start from a template...", (_, _) => NewFromGallery(), 190);
         var import = Ui.Button("Import configuration...", (_, _) => ImportConfiguration(), 190);
         _emptyButtons.Controls.AddRange([create, several, template, import]);
 
@@ -609,14 +598,40 @@ internal sealed class MainForm : Form
 
         switch (welcome.Choice)
         {
-            case WelcomeChoice.Template when welcome.Template is { } template:
-                NewJob(template.Create());
+            case WelcomeChoice.Gallery:
+                NewFromGallery();
+                break;
+            case WelcomeChoice.Batch:
+                NewBatch();
                 break;
             case WelcomeChoice.Blank:
                 NewJob();
                 break;
             case WelcomeChoice.Import:
                 ImportConfiguration();
+                break;
+        }
+    }
+
+    /// <summary>Opens the template gallery and continues with whatever was picked there.</summary>
+    private void NewFromGallery()
+    {
+        using var gallery = new TemplateGalleryForm();
+        if (gallery.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        switch (gallery.Choice)
+        {
+            case GalleryChoice.Template when gallery.Template is { } template:
+                NewJob(template.Create());
+                break;
+            case GalleryChoice.Batch:
+                NewBatch();
+                break;
+            case GalleryChoice.Blank:
+                NewJob();
                 break;
         }
     }
@@ -1581,7 +1596,7 @@ internal sealed class MainForm : Form
         switch (keyData)
         {
             case Keys.Control | Keys.N:
-                NewJob();
+                NewFromGallery();
                 return true;
             case Keys.Control | Keys.R when SelectedJob is not null:
                 RunNow();

@@ -257,7 +257,7 @@ The **Jobs** tab shows a one-line summary (how many jobs are OK, need attention 
 
 Every destination type has a **setup guide** next to its settings: where to create the credentials (Google Cloud, Dropbox App Console, Azure app registrations, S3 keys, Telegram bot…), where to sign in, and the pitfalls, with direct links.
 
-**New ▾** offers more than 20 templates (websites, WordPress, MongoDB, SQL Server point-in-time chain, PostgreSQL, MySQL, Redis, SQLite, file servers, deduplicated archives, Windows configuration, Docker, Hyper-V, off-site copies) and **Set up several backups at once**: tick IIS websites detected on the server, MongoDB or SQL Server databases listed from the server, or folders; choose the destination(s), schedule, retention and encryption once; Storix creates one job per item with staggered start times (for example 3 websites and 3 MongoDB databases to Google Drive, starting 02:00, 02:15, 02:30…).
+**New** (Ctrl+N) opens the template gallery: 25 templates shown as cards, grouped by category (websites, databases, files and folders, server and virtual machines, off-site copies), each with its schedule, source, destinations and encryption at a glance, and searchable in English and Persian. The templates cover websites, WordPress, MongoDB, SQL Server point-in-time chain, PostgreSQL, MySQL, Redis, SQLite, file servers, deduplicated archives, Windows configuration, Docker, Hyper-V, off-site copies). The first card, **Set up several backups at once**, is a wizard: tick IIS websites detected on the server, MongoDB or SQL Server databases listed from the server, or folders; choose the destination(s), schedule, retention and encryption once; Storix creates one job per item with staggered start times (for example 3 websites and 3 MongoDB databases to Google Drive, starting 02:00, 02:15, 02:30…).
 
 The **Dashboard** tab shows the success rate of the last 30 days, the space each job and each destination takes (estimated from the run history and the retention policy), the daily growth of the backup size and a 30-day forecast.
 
@@ -342,7 +342,7 @@ storix validate jobs.storix.json    # checks every job, reports missing variable
 storix apply    jobs.storix.json    # imports the jobs, resolving the placeholders
 ```
 
-The manager also offers **New from template** (SQL Server nightly to S3, log backups, website to SFTP, documents to NAS, MongoDB to Google Drive) and a **Dry run** button.
+The manager also offers the **template gallery** (see above) and a **Dry run** button.
 
 ### Import / export
 

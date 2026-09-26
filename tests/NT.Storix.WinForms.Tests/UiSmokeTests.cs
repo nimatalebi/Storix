@@ -283,6 +283,44 @@ public class UiSmokeTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Template_gallery_renders_every_category(bool persian)
+    {
+        RunOnSta(() =>
+        {
+            Localizer.SetLanguage(persian);
+            try
+            {
+                using var gallery = new TemplateGalleryForm { ShowInTaskbar = false, Opacity = 0 };
+                gallery.Show();
+                var cards = Descendants(gallery).OfType<TemplateCard>().ToList();
+                Assert.Equal(NT.Storix.Core.Configuration.JobTemplate.All.Count + 1, cards.Count);
+                Assert.All(cards, card => Assert.False(string.IsNullOrWhiteSpace(card.Text)));
+                var language = persian ? "fa" : "en";
+                Capture(gallery, $"gallery-{language}-all");
+                var categories = Descendants(gallery).OfType<RadioButton>().ToList();
+                for (var i = 1; i < categories.Count; i++)
+                {
+                    categories[i].Checked = true;
+                    Capture(gallery, $"gallery-{language}-{i}");
+                }
+
+                gallery.Close();
+
+                using var welcome = new WelcomeForm(serviceInstalled: false) { ShowInTaskbar = false, Opacity = 0 };
+                welcome.Show();
+                Capture(welcome, $"welcome-{language}");
+                welcome.Close();
+            }
+            finally
+            {
+                Localizer.SetLanguage(false);
+            }
+        });
+    }
+
     private static IEnumerable<Control> Descendants(Control control) =>
         control.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
 }
