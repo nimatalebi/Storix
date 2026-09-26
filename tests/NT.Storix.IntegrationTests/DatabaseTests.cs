@@ -74,6 +74,11 @@ public class DatabaseTests
         var collection = client.GetDatabase("shop").GetCollection<BsonDocument>("orders");
         await collection.InsertManyAsync(Enumerable.Range(1, 3000).Select(i => new BsonDocument { ["_id"] = i, ["total"] = i * 1.5, ["customer"] = $"c{i % 97}" }));
 
+        // The "several backups at once" wizard lists the databases of the server (without admin/local/config).
+        var databases = await NT.Storix.Core.Configuration.ServerDiscovery.MongoDbDatabasesAsync(container.GetConnectionString(), CancellationToken.None);
+        Assert.Contains("shop", databases);
+        Assert.DoesNotContain("admin", databases);
+
         // mongodump/mongorestore run inside the container; paths are identical thanks to the bind mount.
         var inside = BuildInsideUri(container.GetConnectionString());
         var job = new BackupJob

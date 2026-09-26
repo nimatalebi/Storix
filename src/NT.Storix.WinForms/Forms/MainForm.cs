@@ -321,10 +321,22 @@ internal sealed class MainForm : Form
             }
         };
 
-        // New: an empty job, or one of the templates.
-        foreach (var template in NT.Storix.Core.Configuration.JobTemplate.All)
+        // New: several jobs at once, an empty job, or one of the templates (grouped by category).
+        _templateMenu.Items.Add(new ToolStripMenuItem("Set up several backups at once...", Glyphs.Icon(Glyphs.Add), (_, _) => NewBatch())
         {
-            _templateMenu.Items.Add(new ToolStripMenuItem(template.Name, Glyphs.Icon(Glyphs.Template), (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
+            ToolTipText = "Websites, databases or folders: one job each, same destination and schedule",
+            Font = new Font(Font, FontStyle.Bold),
+        });
+        _templateMenu.Items.Add(new ToolStripSeparator());
+        foreach (var group in NT.Storix.Core.Configuration.JobTemplate.All.GroupBy(t => t.Category))
+        {
+            var category = new ToolStripMenuItem(group.Key, Glyphs.Icon(Glyphs.Template));
+            foreach (var template in group)
+            {
+                category.DropDownItems.Add(new ToolStripMenuItem(template.Name, null, (_, _) => NewJob(template.Create())) { ToolTipText = template.Description });
+            }
+
+            _templateMenu.Items.Add(category);
         }
 
         var newButton = new ToolStripSplitButton("New", Glyphs.Icon(Glyphs.Add)) { ToolTipText = "New backup job (Ctrl+N)", DropDown = _templateMenu };
@@ -387,10 +399,11 @@ internal sealed class MainForm : Form
     {
         _emptyText.Font = new Font(Font.FontFamily, Font.Size + 3);
         var create = Ui.Button("Create a backup job", (_, _) => NewJob(), 190);
+        var several = Ui.Button("Several at once...", (_, _) => NewBatch(), 190);
         var template = Ui.Button("Start from a template ▾", (_, _) => { }, 190);
         template.Click += (_, _) => _templateMenu.Show(template, new Point(0, template.Height));
         var import = Ui.Button("Import configuration...", (_, _) => ImportConfiguration(), 190);
-        _emptyButtons.Controls.AddRange([create, template, import]);
+        _emptyButtons.Controls.AddRange([create, several, template, import]);
 
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
@@ -606,6 +619,25 @@ internal sealed class MainForm : Form
                 ImportConfiguration();
                 break;
         }
+    }
+
+    /// <summary>Creates one job per website, database or folder with shared destination and schedule.</summary>
+    private void NewBatch()
+    {
+        using var wizard = new BatchSetupForm(_jobList, _services.Destinations);
+        if (wizard.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        foreach (var job in wizard.Jobs)
+        {
+            _services.Jobs.Save(job);
+            _services.Audit.Add("job.create", job.Name, AuditDiff.Describe<BackupJob>(null, job));
+        }
+
+        RefreshJobs();
+        ShowNotice(Localizer.F("Created {0} job(s).", wizard.Jobs.Count));
     }
 
     private void NewJob(BackupJob? template = null)

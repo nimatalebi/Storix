@@ -251,6 +251,8 @@ The **Jobs** tab shows a one-line summary (how many jobs are OK, need attention 
 
 Every destination type has a **setup guide** next to its settings: where to create the credentials (Google Cloud, Dropbox App Console, Azure app registrations, S3 keys, Telegram bot…), where to sign in, and the pitfalls, with direct links.
 
+**New ▾** offers more than 20 templates (websites, WordPress, MongoDB, SQL Server point-in-time chain, PostgreSQL, MySQL, Redis, SQLite, file servers, deduplicated archives, Windows configuration, Docker, Hyper-V, off-site copies) and **Set up several backups at once**: tick IIS websites detected on the server, MongoDB or SQL Server databases listed from the server, or folders; choose the destination(s), schedule, retention and encryption once; Storix creates one job per item with staggered start times (for example 3 websites and 3 MongoDB databases to Google Drive, starting 02:00, 02:15, 02:30…).
+
 The **Dashboard** tab shows the success rate of the last 30 days, the space each job and each destination takes (estimated from the run history and the retention policy), the daily growth of the backup size and a 30-day forecast.
 
 Storix Manager is available in **English and Persian** (right-to-left layout) with a **light, dark or system** theme: **Settings → Appearance** (per Windows user; restart the manager to apply). By default the language follows Windows. Some longer help texts and messages are still English only; translations are welcome.

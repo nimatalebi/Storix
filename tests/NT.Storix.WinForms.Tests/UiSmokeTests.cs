@@ -254,4 +254,35 @@ public class UiSmokeTests
             }
         });
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Batch_setup_renders_for_every_kind(bool persian)
+    {
+        RunOnSta(() =>
+        {
+            Localizer.SetLanguage(persian);
+            try
+            {
+                var services = SeededServices();
+                using var wizard = new BatchSetupForm(services.Jobs.GetAll(), services.Destinations) { ShowInTaskbar = false, Opacity = 0 };
+                wizard.Show();
+                foreach (var radio in wizard.Controls.OfType<TableLayoutPanel>().SelectMany(Descendants).OfType<RadioButton>().ToList())
+                {
+                    radio.Checked = true;
+                    Capture(wizard, $"batch-{(persian ? "fa" : "en")}-{radio.Text.Split(' ')[0]}");
+                }
+
+                wizard.Close();
+            }
+            finally
+            {
+                Localizer.SetLanguage(false);
+            }
+        });
+    }
+
+    private static IEnumerable<Control> Descendants(Control control) =>
+        control.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
 }
