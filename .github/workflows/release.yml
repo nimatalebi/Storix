@@ -49,11 +49,22 @@ jobs:
             artifacts/*.exe
             artifacts/SHA256SUMS.txt
 
+      - name: Release notes
+        id: notes
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $notes = "docs/releases/${{ github.ref_name }}.md"
+          if (Test-Path $notes) { "path=$notes" >> $env:GITHUB_OUTPUT }
+
       - name: GitHub release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          name: Storix ${{ steps.version.outputs.value }}
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
+          prerelease: ${{ contains(steps.version.outputs.value, '-') }}
           files: |
             artifacts/*.msi
             artifacts/*.zip
@@ -61,6 +72,8 @@ jobs:
             artifacts/SHA256SUMS.txt
 
   linux:
+    # After the Windows job, so that one creates the release (with its notes) and this one only adds files.
+    needs: package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
