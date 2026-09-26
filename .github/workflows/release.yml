@@ -9,6 +9,10 @@ on:
         description: Version to package (without the leading v)
         required: true
         default: 0.1.0-preview
+      publish:
+        description: Create the tag v<version> on this commit and publish the GitHub release
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,6 +33,7 @@ jobs:
         run: |
           $v = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '${{ inputs.version }}' }
           "value=$v" >> $env:GITHUB_OUTPUT
+          "tag=v$v" >> $env:GITHUB_OUTPUT
 
       - name: Test
         run: dotnet test Storix.sln -c Release
@@ -51,16 +56,18 @@ jobs:
 
       - name: Release notes
         id: notes
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.publish
         shell: pwsh
         run: |
-          $notes = "docs/releases/${{ github.ref_name }}.md"
+          $notes = "docs/releases/${{ steps.version.outputs.tag }}.md"
           if (Test-Path $notes) { "path=$notes" >> $env:GITHUB_OUTPUT }
 
       - name: GitHub release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.publish
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: Storix ${{ steps.version.outputs.value }}
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
@@ -87,6 +94,7 @@ jobs:
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then v="${{ github.ref_name }}"; v="${v#v}"; else v="${{ inputs.version }}"; fi
           echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
 
       - name: Package
         run: ./build/package-linux.sh "${{ steps.version.outputs.value }}" artifacts
@@ -99,9 +107,10 @@ jobs:
             artifacts/SHA256SUMS-linux.txt
 
       - name: GitHub release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.publish
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           files: |
             artifacts/*.tar.gz
             artifacts/SHA256SUMS-linux.txt

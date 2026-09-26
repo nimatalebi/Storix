@@ -226,7 +226,7 @@ Data, logs and the database live in `/var/lib/storix`. Secrets in the database a
 
 ### Releases
 
-Push a tag like `v1.2.0` and the `release` workflow builds the MSI, the portable ZIP, the standalone CLI and the Linux package, then publishes a GitHub release. The release notes come from `docs/releases/v1.2.0.md` when that file exists (otherwise they are generated from the commits); a version with a suffix such as `-preview` is published as a pre-release.
+Push a tag like `v1.2.0` and the `release` workflow builds the MSI, the portable ZIP, the standalone CLI and the Linux package, then publishes a GitHub release. The release notes come from `docs/releases/v1.2.0.md` when that file exists (otherwise they are generated from the commits); a version with a suffix such as `-preview` is published as a pre-release. A release can also be made from the Actions tab: run the `release` workflow with the version and tick **publish**; it creates the tag on that commit.
 To sign the binaries, add the repository secrets `STORIX_SIGN_CERT` (base64-encoded `.pfx`) and `STORIX_SIGN_PASSWORD`.
 
 ### Development
