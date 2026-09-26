@@ -1,6 +1,12 @@
-# Storix
+<p align="center">
+  <img src="assets/logo.svg" alt="Storix logo" width="112" height="112">
+</p>
 
-**Storix** is an open-source backup agent for Windows.
+<h1 align="center">Storix</h1>
+
+<p align="center">Open-source backup agent for Windows and Linux: websites, files and databases, encrypted, to wherever you keep backups.</p>
+
+**Storix** is an open-source backup agent for Windows (with a Linux agent).
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
 
 Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive**, **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint**, a **Telegram or Bale** channel (directly or through a Cloudflare Worker relay) or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.

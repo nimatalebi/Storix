@@ -29,7 +29,7 @@ internal sealed class TrayIcon : IDisposable
         _menu.Opening += (_, _) => RebuildJobMenu();
 
         _icon.ContextMenuStrip = _menu;
-        _icon.Icon = SystemIcons.Shield;
+        _icon.Icon = Branding.TrayIcon(null);
         _icon.Text = "Storix";
         _icon.Visible = true;
         _icon.DoubleClick += (_, _) => ShowOwner();
@@ -52,13 +52,13 @@ internal sealed class TrayIcon : IDisposable
         var summary = StatusSummary.Create(_services.Jobs.GetAll(), _services.Runs.GetLast);
         _icon.Text = summary.Text;
         _status.Text = summary.Text;
-        _icon.Icon = summary.Status switch
+        _icon.Icon = Branding.TrayIcon(summary.Status switch
         {
-            OverallStatus.Error => SystemIcons.Error,
-            OverallStatus.Warning => SystemIcons.Warning,
-            OverallStatus.Running => SystemIcons.Information,
-            _ => SystemIcons.Shield,
-        };
+            OverallStatus.Error => JobState.Failed,
+            OverallStatus.Warning => JobState.Warning,
+            OverallStatus.Running => JobState.Running,
+            _ => null,
+        });
 
         // Only announce failures that appeared since the last refresh, not the ones present at start-up.
         var failures = summary.Failed.ToHashSet();

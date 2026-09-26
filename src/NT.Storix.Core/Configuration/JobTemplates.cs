@@ -4,7 +4,7 @@ using NT.Storix.Core.Sources;
 namespace NT.Storix.Core.Configuration;
 
 /// <summary>Ready-made job setups for common scenarios. Everything can be changed after creating the job.</summary>
-public sealed record JobTemplate(string Name, string Description, Func<BackupJob> Create)
+public sealed partial record JobTemplate(string Name, string Description, Func<BackupJob> Create)
 {
     public const string Websites = "Websites";
     public const string Databases = "Databases";

@@ -6,6 +6,7 @@
     <AssemblyName>Storix.Service</AssemblyName>
     <OutputType>Exe</OutputType>
     <UserSecretsId>NT.Storix.Service</UserSecretsId>
+    <ApplicationIcon>storix.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

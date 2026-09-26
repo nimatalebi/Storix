@@ -14,20 +14,26 @@ internal sealed class AboutForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(520, 430);
+        ClientSize = new Size(540, 480);
 
         var grid = Ui.Form();
         grid.Padding = new Padding(20);
 
-        grid.Row(null, new Label { Text = StorixInfo.ProductName, AutoSize = true, Font = new Font(Font.FontFamily, 22, FontStyle.Bold) });
+        var logo = new PictureBox { Image = Branding.Logo(LogicalToDeviceUnits(64)), SizeMode = PictureBoxSizeMode.AutoSize, Margin = new Padding(3, 3, 14, 3) };
+        var title = new Label { Text = StorixInfo.ProductName, AutoSize = true, Font = new Font(Font.FontFamily, 22, FontStyle.Bold), Anchor = AnchorStyles.Left };
+        var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        header.Controls.AddRange([logo, title]);
+        title.Margin = new Padding(3, LogicalToDeviceUnits(14), 3, 3);
+        grid.Row(null, header);
         grid.Row(null, new Label { Text = $"Version {StorixInfo.Version}", AutoSize = true, ForeColor = SystemColors.GrayText });
         grid.Row(null, new Label
         {
             AutoSize = true,
             MaximumSize = new Size(470, 0),
             Margin = new Padding(3, 12, 3, 12),
-            Text = "Storix is a free, open-source backup agent for Windows. It backs up files, SQL Server and MongoDB " +
-                   "on a schedule, compresses and encrypts them, and stores them on local folders, FTP, SFTP, Google Drive and S3.",
+            Text = "Storix is a free, open-source backup agent for Windows and Linux. It backs up websites, files and databases " +
+                   "(SQL Server, MongoDB, PostgreSQL, MySQL and more) on a schedule, compresses and encrypts them, and stores them " +
+                   "on network shares, SFTP, S3, Google Drive, OneDrive, Dropbox, Telegram and many other destinations.",
         });
 
         grid.Row("GitHub", Link(StorixInfo.RepositoryUrl, StorixInfo.RepositoryUrl));

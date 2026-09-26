@@ -23,6 +23,8 @@ public class TemplateTests
             var errors = BackupJobRunner.GetValidationErrors(job);
             Assert.DoesNotContain(errors, e => e.Contains("Schedule") || e.Contains("archive-only") || e.Contains("already incremental") || e.Contains("public key"));
             Assert.NotSame(job, template.Create());
+            Assert.NotEqual(template.Name, template.NameFor(persian: true));
+            Assert.NotEqual(template.Description, template.DescriptionFor(persian: true));
         }
     }
 

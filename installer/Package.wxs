@@ -13,6 +13,8 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Storix is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <Icon Id="StorixIcon" SourceFile="storix.ico" />
+    <Property Id="ARPPRODUCTICON" Value="StorixIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/nimatalebi/Storix" />
     <Property Id="ARPHELPLINK" Value="https://github.com/nimatalebi/Storix/issues" />
     <Property Id="ARPCONTACT" Value="nimatweb@gmail.com" />

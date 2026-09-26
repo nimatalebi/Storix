@@ -10,7 +10,12 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationVisualStyles>true</ApplicationVisualStyles>
     <ApplicationDefaultFont>Segoe UI, 9pt</ApplicationDefaultFont>
+    <ApplicationIcon>storix.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="storix.ico" LogicalName="Storix.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" />

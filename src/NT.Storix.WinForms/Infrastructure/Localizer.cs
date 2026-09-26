@@ -95,6 +95,7 @@ internal static class Localizer
 
     public static void Attach(Form form)
     {
+        form.Icon = Branding.AppIcon;
         if (!IsPersian)
         {
             return;
