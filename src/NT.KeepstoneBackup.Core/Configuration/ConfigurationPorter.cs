@@ -8,8 +8,10 @@ namespace NT.KeepstoneBackup.Core.Configuration;
 /// <summary>Portable configuration file (jobs and optionally global settings).</summary>
 public sealed class ConfigurationPackage
 {
-    // Keeps the project's former name (Storix) so earlier exports still import.
-    public const string FormatName = "storix-config";
+    public const string FormatName = "keepstonebackup-config";
+
+    /// <summary>Written before the project was renamed from Storix.</summary>
+    public const string LegacyFormatName = "storix-config";
     public const int CurrentVersion = 1;
 
     /// <summary>Always <see cref="FormatName"/> in a valid file (no default, so foreign JSON is detected).</summary>
@@ -43,8 +45,10 @@ public sealed class PassphraseInfo
 public static class ConfigurationPorter
 {
     private const int Iterations = 600_000;
-    // Keeps the project's former name (Storix) so password-protected earlier exports still import.
-    private const string CheckValue = "storix";
+    private const string CheckValue = "keepstonebackup";
+
+    // Exports made before the project was renamed from Storix.
+    private const string LegacyCheckValue = "storix";
 
     /// <summary>
     /// Serializes the configuration. Without a passphrase every secret (passwords, connection strings,
@@ -100,7 +104,7 @@ public static class ConfigurationPorter
             var protector = new PassphraseSecretProtector(passphrase, Convert.FromBase64String(info.Salt), info.Iterations);
             try
             {
-                if (protector.Unprotect(info.Check) != CheckValue)
+                if (protector.Unprotect(info.Check) is not (CheckValue or LegacyCheckValue))
                 {
                     throw new CryptographicException();
                 }
@@ -129,7 +133,7 @@ public static class ConfigurationPorter
             throw new InvalidDataException("The file is not a valid KeepstoneBackup configuration.", ex);
         }
 
-        if (package is null || package.Format != ConfigurationPackage.FormatName)
+        if (package is null || package.Format is not (ConfigurationPackage.FormatName or ConfigurationPackage.LegacyFormatName))
         {
             throw new InvalidDataException("The file is not a KeepstoneBackup configuration export.");
         }

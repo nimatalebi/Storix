@@ -18,8 +18,10 @@ public sealed class IndexEntry
 /// </summary>
 public sealed class BackupIndex
 {
-    // Format names keep the project's former name (Storix) so existing backups stay readable.
-    public const string FormatName = "storix-index";
+    public const string FormatName = "keepstonebackup-index";
+
+    /// <summary>Written before the project was renamed from Storix.</summary>
+    public const string LegacyFormatName = "storix-index";
     public const int CurrentVersion = 1;
     public const string Extension = ".index";
 
@@ -84,7 +86,7 @@ public sealed class BackupIndex
             await using var file = File.OpenRead(plain);
             await using var gzip = new GZipStream(file, CompressionMode.Decompress);
             var index = await JsonSerializer.DeserializeAsync<BackupIndex>(gzip, KeepstoneBackupJson.Options, cancellationToken);
-            if (index is null || index.Format != FormatName)
+            if (index is null || index.Format is not (FormatName or LegacyFormatName))
             {
                 throw new InvalidDataException("Invalid KeepstoneBackup backup index.");
             }
@@ -107,7 +109,7 @@ public sealed class BackupIndex
         return new BackupIndex
         {
             Archive = archiveName,
-            Entries = zip.Entries.Where(e => !e.FullName.EndsWith('/') && !e.FullName.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))
+            Entries = zip.Entries.Where(e => !e.FullName.EndsWith('/') && !ChainInfo.IsMetadata(e.FullName))
                 .Select(e => new IndexEntry { Path = e.FullName, Size = e.Length, Modified = e.LastWriteTime })
                 .ToList(),
         };

@@ -41,8 +41,8 @@ jobs:
       - name: Package
         shell: pwsh
         env:
-          KEEPSTONEBACKUP_SIGN_CERT: ${{ secrets.STORIX_SIGN_CERT }}
-          KEEPSTONEBACKUP_SIGN_PASSWORD: ${{ secrets.STORIX_SIGN_PASSWORD }}
+          KEEPSTONEBACKUP_SIGN_CERT: ${{ secrets.KEEPSTONEBACKUP_SIGN_CERT }}
+          KEEPSTONEBACKUP_SIGN_PASSWORD: ${{ secrets.KEEPSTONEBACKUP_SIGN_PASSWORD }}
         run: ./build/package.ps1 -Version ${{ steps.version.outputs.value }} -Output artifacts
 
       - uses: actions/upload-artifact@v4

@@ -9,7 +9,7 @@ public static class KeepstoneBackupInfo
     public const string ProductName = "KeepstoneBackup";
     public const string Authors = "KeepstoneBackup Contributors";
     public const string License = "MIT";
-    public const string RepositoryUrl = "https://github.com/nimatalebi/Storix";
+    public const string RepositoryUrl = "https://github.com/nimatalebi/KeepstoneBackup";
     public const string IssuesUrl = RepositoryUrl + "/issues";
     public const string NewIssueUrl = IssuesUrl + "/new";
     public const string LicenseUrl = RepositoryUrl + "/blob/main/LICENSE";

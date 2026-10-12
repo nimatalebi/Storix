@@ -34,7 +34,7 @@ public sealed class NotificationChannel
     [Category("Webhook / Slack / Teams / Discord"), Description("Webhook URL."), Secret]
     public string? Url { get; set; }
 
-    [Category("Webhook / Slack / Teams / Discord"), Description("Webhook only: secret used to sign the body (header X-Storix-Signature: sha256=<hex>)."), PasswordPropertyText(true), Secret]
+    [Category("Webhook / Slack / Teams / Discord"), Description("Webhook only: secret used to sign the body (header X-KeepstoneBackup-Signature: sha256=<hex>)."), PasswordPropertyText(true), Secret]
     public string? SigningSecret { get; set; }
 
     [Category("Telegram / Bale"), Description("Bot token from @BotFather (Telegram) or the Bale bot father."), PasswordPropertyText(true), Secret]
@@ -46,7 +46,7 @@ public sealed class NotificationChannel
     [Category("Telegram / Bale"), Description("Optional relay when this server cannot reach the Bot API, e.g. a Cloudflare Worker URL. Empty = the official API.")]
     public string? ApiBaseUrl { get; set; }
 
-    [Category("Telegram / Bale"), Description("Shared key for the relay (X-Storix-Relay-Key header)."), PasswordPropertyText(true), Secret]
+    [Category("Telegram / Bale"), Description("Shared key for the relay (X-KeepstoneBackup-Relay-Key header)."), PasswordPropertyText(true), Secret]
     public string? RelayKey { get; set; }
 
     public override string ToString() => $"{Name} ({Kind})";

@@ -28,5 +28,5 @@ Code, tests, and README/docs are updated. No secrets appear in logs. The backup 
 
 ## Contact
 
-- Issues: https://github.com/nimatalebi/Storix/issues
+- Issues: https://github.com/nimatalebi/KeepstoneBackup/issues
 - E-mail: nimatweb@gmail.com

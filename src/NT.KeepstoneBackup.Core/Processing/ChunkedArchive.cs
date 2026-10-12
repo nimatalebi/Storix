@@ -18,8 +18,10 @@ public sealed class ChunkInfo
 /// </summary>
 public sealed class ChunkManifest
 {
-    // Keeps the project's former name (Storix) so existing chunked backups stay readable.
-    public const string FormatName = "storix-chunks";
+    public const string FormatName = "keepstonebackup-chunks";
+
+    /// <summary>Written before the project was renamed from Storix.</summary>
+    public const string LegacyFormatName = "storix-chunks";
     public const int CurrentVersion = 1;
     public const string Extension = ".manifest.json";
 
@@ -45,7 +47,7 @@ public sealed class ChunkManifest
     public static ChunkManifest Parse(string json)
     {
         var manifest = JsonSerializer.Deserialize<ChunkManifest>(json, KeepstoneBackupJson.Options);
-        if (manifest is null || manifest.Format != FormatName || manifest.Chunks.Count == 0)
+        if (manifest is null || manifest.Format is not (FormatName or LegacyFormatName) || manifest.Chunks.Count == 0)
         {
             throw new InvalidDataException("Invalid KeepstoneBackup chunk manifest.");
         }

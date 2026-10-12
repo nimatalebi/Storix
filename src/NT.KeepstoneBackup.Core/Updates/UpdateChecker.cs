@@ -13,7 +13,7 @@ public sealed record ReleaseInfo(string Version, string Tag, string PageUrl, str
 /// </summary>
 public static class UpdateChecker
 {
-    public const string ReleasesApi = "https://api.github.com/repos/nimatalebi/Storix/releases";
+    public const string ReleasesApi = "https://api.github.com/repos/nimatalebi/KeepstoneBackup/releases";
     public const string ChecksumsFile = "SHA256SUMS.txt";
 
     /// <summary>The newest release that is newer than <paramref name="currentVersion"/>, or null.</summary>

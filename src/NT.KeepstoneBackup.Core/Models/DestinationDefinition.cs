@@ -280,7 +280,7 @@ public sealed class TelegramOptions
     [Category("Connection"), Description("Optional relay when this server cannot reach the Bot API directly, e.g. a Cloudflare Worker (https://keepstonebackup-relay.example.workers.dev) or a local Bot API server. Empty = the official API.")]
     public string? ApiBaseUrl { get; set; }
 
-    [Category("Connection"), Description("Shared key sent to the relay in the X-Storix-Relay-Key header (set the same RELAY_KEY on the worker)."), PasswordPropertyText(true), Secret]
+    [Category("Connection"), Description("Shared key sent to the relay in the X-KeepstoneBackup-Relay-Key header (set the same RELAY_KEY on the worker)."), PasswordPropertyText(true), Secret]
     public string? RelayKey { get; set; }
 
     [Category("Connection"), Description("Files larger than this are sent in parts (name.001, name.002...). The official Bot API accepts up to 50 MB per file, so keep 47; a local Bot API server allows up to 2000.")]

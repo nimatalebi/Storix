@@ -13,13 +13,15 @@ public sealed class TelegramApiException(string method, int code, string descrip
 
 /// <summary>
 /// Minimal Telegram Bot API client (also used for Bale). All calls can go through a relay, e.g. a Cloudflare
-/// Worker, by setting <see cref="BaseUrl"/>; the relay key is sent in <c>X-Storix-Relay-Key</c>. The bot token is
+/// Worker, by setting <see cref="BaseUrl"/>; the relay key is sent in <c>X-KeepstoneBackup-Relay-Key</c>. The bot token is
 /// part of the URL, so exceptions and logs never include URLs.
 /// </summary>
 public sealed class TelegramBotApi
 {
-    // Keeps the project's former name (Storix) so relays that are already deployed keep working.
-    public const string RelayHeader = "X-Storix-Relay-Key";
+    public const string RelayHeader = "X-KeepstoneBackup-Relay-Key";
+
+    // Also sent so relays deployed before the project was renamed from Storix keep working.
+    public const string LegacyRelayHeader = "X-Storix-Relay-Key";
     public const string TelegramUrl = "https://api.telegram.org";
     public const string BaleUrl = "https://tapi.bale.ai";
 
@@ -185,6 +187,7 @@ public sealed class TelegramBotApi
         if (_relayKey is not null)
         {
             request.Headers.Add(RelayHeader, _relayKey);
+            request.Headers.Add(LegacyRelayHeader, _relayKey);
         }
     }
 

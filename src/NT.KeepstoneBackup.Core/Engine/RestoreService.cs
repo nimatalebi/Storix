@@ -464,7 +464,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         var plan = new List<(ZipArchiveEntry Entry, string Path)>();
         foreach (var entry in zip.Entries)
         {
-            if (entry.FullName.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))
+            if (ChainInfo.IsMetadata(entry.FullName))
             {
                 continue;
             }
@@ -512,7 +512,7 @@ public sealed class RestoreService(IDestinationFactory destinationFactory)
         }
 
         // Incremental backups list the files deleted since the backup before them.
-        if (zip.GetEntry(ChainInfo.DeletedEntryName) is { } deletedEntry)
+        if ((zip.GetEntry(ChainInfo.DeletedEntryName) ?? zip.GetEntry(ChainInfo.LegacyDeletedEntryName)) is { } deletedEntry)
         {
             using var reader = new StreamReader(deletedEntry.Open());
             while (await reader.ReadLineAsync(cancellationToken) is { } line)

@@ -15,8 +15,8 @@
 
     <Icon Id="KeepstoneBackupIcon" SourceFile="keepstonebackup.ico" />
     <Property Id="ARPPRODUCTICON" Value="KeepstoneBackupIcon" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/nimatalebi/Storix" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/nimatalebi/Storix/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/nimatalebi/KeepstoneBackup" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/nimatalebi/KeepstoneBackup/issues" />
     <Property Id="ARPCONTACT" Value="nimatweb@gmail.com" />
 
     <StandardDirectory Id="ProgramFiles64Folder">

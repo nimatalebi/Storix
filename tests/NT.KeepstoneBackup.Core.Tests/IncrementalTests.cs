@@ -189,7 +189,7 @@ public class IncrementalTests
         Assert.Equal("version two", File.ReadAllText(Path.Combine(root, "src", "change.txt")));
         Assert.Equal("added", File.ReadAllText(Path.Combine(root, "src", "new", "added.txt")));
         Assert.False(File.Exists(Path.Combine(root, "src", "delete.txt")));
-        Assert.False(Directory.Exists(Path.Combine(root, ".storix")));
+        Assert.False(Directory.Exists(Path.Combine(root, ".keepstonebackup")));
         Assert.Equal(split, File.Exists(Path.Combine(root, "src", "big.bin")));
     }
 

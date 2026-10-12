@@ -10,7 +10,7 @@
     <Authors>KeepstoneBackup Contributors</Authors>
     <Copyright>Copyright (c) KeepstoneBackup Contributors</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/nimatalebi/Storix</RepositoryUrl>
+    <RepositoryUrl>https://github.com/nimatalebi/KeepstoneBackup</RepositoryUrl>
     <Version>1.0.0</Version>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>

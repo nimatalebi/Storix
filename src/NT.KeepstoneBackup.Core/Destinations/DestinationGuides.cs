@@ -275,10 +275,10 @@ public static class DestinationGuides
         [
             L("@BotFather", "@BotFather", "https://t.me/BotFather"),
             L("Cloudflare Workers", "Cloudflare Workers", "https://dash.cloudflare.com/?to=/:account/workers-and-pages/create"),
-            L("Setup guide (relay)", "راهنمای کامل (رله)", "https://github.com/nimatalebi/Storix/blob/main/docs/TELEGRAM.md"),
+            L("Setup guide (relay)", "راهنمای کامل (رله)", "https://github.com/nimatalebi/KeepstoneBackup/blob/main/docs/TELEGRAM.md"),
         ],
-        T("Do not unpin the \"storix-catalog.json\" message: it is how KeepstoneBackup finds the backups from another computer.",
-          "پیام سنجاق‌شدهٔ «storix-catalog.json» را از سنجاق خارج نکنید؛ کیپ‌استون بک‌آپ با آن پشتیبان‌ها را از رایانهٔ دیگر پیدا می‌کند."));
+        T("Do not unpin the \"keepstonebackup-catalog.json\" message: it is how KeepstoneBackup finds the backups from another computer.",
+          "پیام سنجاق‌شدهٔ «keepstonebackup-catalog.json» را از سنجاق خارج نکنید؛ کیپ‌استون بک‌آپ با آن پشتیبان‌ها را از رایانهٔ دیگر پیدا می‌کند."));
 
     private static readonly DestinationGuide Plugin = new(
         T("Plugin destination", "مقصد افزونه"),
@@ -288,7 +288,7 @@ public static class DestinationGuides
             T("Plugin: its id. Settings: one name=value per line; secret settings: name=value; name2=value2 (stored encrypted).",
               "Plugin: شناسهٔ افزونه. Settings: هر خط یک name=value؛ تنظیمات محرمانه: name=value; name2=value2 (رمزنگاری‌شده ذخیره می‌شوند)."),
         ],
-        [L("Plugin guide", "راهنمای افزونه‌ها", "https://github.com/nimatalebi/Storix/blob/main/docs/PLUGINS.md")]);
+        [L("Plugin guide", "راهنمای افزونه‌ها", "https://github.com/nimatalebi/KeepstoneBackup/blob/main/docs/PLUGINS.md")]);
 }
 
 /// <summary>Step-by-step setup instructions for notification channels.</summary>
@@ -322,7 +322,7 @@ public static class ChannelGuides
         ],
         [
             L("@BotFather", "@BotFather", "https://t.me/BotFather"),
-            L("Relay guide", "راهنمای رله", "https://github.com/nimatalebi/Storix/blob/main/docs/TELEGRAM.md"),
+            L("Relay guide", "راهنمای رله", "https://github.com/nimatalebi/KeepstoneBackup/blob/main/docs/TELEGRAM.md"),
         ]);
 
     private static readonly DestinationGuide Bale = new(
@@ -375,8 +375,8 @@ public static class ChannelGuides
         [
             T("Url: an HTTPS endpoint of your system (monitoring, ticketing, n8n, Zapier...). KeepstoneBackup sends a JSON document with the job, status, size and message.",
               "Url: نشانی HTTPS سامانهٔ شما (مانیتورینگ، تیکتینگ، n8n، Zapier...). کیپ‌استون بک‌آپ یک سند JSON شامل کار، وضعیت، حجم و پیام می‌فرستد."),
-            T("SigningSecret (recommended): any long random text. KeepstoneBackup signs the body with HMAC-SHA256 and sends X-Storix-Signature: sha256=<hex>; check it on your side.",
-              "SigningSecret (توصیه‌شده): یک متن تصادفی طولانی. کیپ‌استون بک‌آپ بدنه را با HMAC-SHA256 امضا و X-Storix-Signature: sha256=<hex> را ارسال می‌کند؛ آن را در سمت خود بررسی کنید."),
+            T("SigningSecret (recommended): any long random text. KeepstoneBackup signs the body with HMAC-SHA256 and sends X-KeepstoneBackup-Signature: sha256=<hex>; check it on your side.",
+              "SigningSecret (توصیه‌شده): یک متن تصادفی طولانی. کیپ‌استون بک‌آپ بدنه را با HMAC-SHA256 امضا و X-KeepstoneBackup-Signature: sha256=<hex> را ارسال می‌کند؛ آن را در سمت خود بررسی کنید."),
             T("Click Send test to check that your endpoint accepts it.", "با «ارسال آزمایشی» بررسی کنید که سامانهٔ شما آن را می‌پذیرد."),
         ],
         []);

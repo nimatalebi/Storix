@@ -13,7 +13,7 @@ A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Ke
 
 KeepstoneBackup backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive**, **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint**, a **Telegram or Bale** channel (directly or through a Cloudflare Worker relay) or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
-[![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
+[![build](https://github.com/nimatalebi/KeepstoneBackup/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/KeepstoneBackup/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -169,7 +169,7 @@ All namespaces start with `NT.` (for example `NT.KeepstoneBackup.Core.Engine`).
 ### Build and test
 
 ```powershell
-git clone https://github.com/nimatalebi/Storix.git
+git clone https://github.com/nimatalebi/KeepstoneBackup.git
 cd KeepstoneBackup
 dotnet build KeepstoneBackup.sln
 dotnet test KeepstoneBackup.sln
@@ -185,7 +185,7 @@ KEEPSTONEBACKUP_INTEGRATION_TESTS=1 dotnet test tests/NT.KeepstoneBackup.Integra
 
 ### Publish and install
 
-The easiest way: download `KeepstoneBackup-<version>-x64.msi` from [GitHub Releases](https://github.com/nimatalebi/Storix/releases). The installer installs and starts the service and adds **KeepstoneBackup Manager** to the Start menu.
+The easiest way: download `KeepstoneBackup-<version>-x64.msi` from [GitHub Releases](https://github.com/nimatalebi/KeepstoneBackup/releases). The installer installs and starts the service and adds **KeepstoneBackup Manager** to the Start menu.
 
 To build it yourself:
 
@@ -398,7 +398,7 @@ With metrics enabled the service serves Prometheus text format at `http://localh
 
 KeepstoneBackup is a community project, and your feedback shapes what comes next.
 
-- **Bugs and feature requests:** [open an issue on GitHub](https://github.com/nimatalebi/Storix/issues/new)
+- **Bugs and feature requests:** [open an issue on GitHub](https://github.com/nimatalebi/KeepstoneBackup/issues/new)
 - **Questions and private feedback:** [nimatweb@gmail.com](mailto:nimatweb@gmail.com)
 - **In the app:** open **Help → Send feedback…**. It creates a GitHub issue or an e-mail with the KeepstoneBackup version and Windows version filled in. You review it before anything is sent.
 
@@ -407,7 +407,7 @@ Please never include passwords, connection strings or encryption keys in an issu
 ## About
 
 KeepstoneBackup is built by the **KeepstoneBackup Contributors** and developed openly at
-**[github.com/nimatalebi/Storix](https://github.com/nimatalebi/Storix)**.
+**[github.com/nimatalebi/KeepstoneBackup](https://github.com/nimatalebi/KeepstoneBackup)**.
 The goal is a simple, dependable, fully open-source backup agent for Windows servers and workstations.
 Open **Help → About KeepstoneBackup** in the manager to see the version, the license and the project links.
 

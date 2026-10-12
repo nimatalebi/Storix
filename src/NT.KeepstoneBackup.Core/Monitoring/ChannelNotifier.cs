@@ -12,8 +12,10 @@ namespace NT.KeepstoneBackup.Core.Monitoring;
 /// <summary>Sends notifications to webhooks and chat apps (Telegram, Bale, Slack, Teams, Discord).</summary>
 public sealed class ChannelNotifier(SettingsRepository settings, HttpClient http, ILogger<ChannelNotifier> logger) : INotifier
 {
-    // Keeps the project's former name (Storix) so existing webhook receivers keep verifying signatures.
-    public const string SignatureHeader = "X-Storix-Signature";
+    public const string SignatureHeader = "X-KeepstoneBackup-Signature";
+
+    // Also sent so webhook receivers set up before the project was renamed from Storix keep verifying.
+    public const string LegacySignatureHeader = "X-Storix-Signature";
 
     private static readonly JsonSerializerOptions PayloadOptions = new(JsonSerializerDefaults.Web);
 
@@ -71,6 +73,7 @@ public sealed class ChannelNotifier(SettingsRepository settings, HttpClient http
                 if (!string.IsNullOrEmpty(channel.RelayKey))
                 {
                     telegram.Headers.Add(Destinations.TelegramBotApi.RelayHeader, channel.RelayKey);
+                    telegram.Headers.Add(Destinations.TelegramBotApi.LegacyRelayHeader, channel.RelayKey);
                 }
 
                 return telegram;
@@ -93,7 +96,9 @@ public sealed class ChannelNotifier(SettingsRepository settings, HttpClient http
                 };
                 if (!string.IsNullOrEmpty(channel.SigningSecret))
                 {
-                    message.Headers.Add(SignatureHeader, "sha256=" + Sign(body, channel.SigningSecret));
+                    var signature = "sha256=" + Sign(body, channel.SigningSecret);
+                    message.Headers.Add(SignatureHeader, signature);
+                    message.Headers.Add(LegacySignatureHeader, signature);
                 }
 
                 return message;

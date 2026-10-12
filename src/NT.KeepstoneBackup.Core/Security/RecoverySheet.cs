@@ -59,7 +59,7 @@ public static class RecoverySheet
 
         html.Append("</table>");
         html.Append("<h2>How to restore</h2><ol>");
-        html.Append("<li>Install KeepstoneBackup from <b>https://github.com/nimatalebi/Storix/releases</b>.</li>");
+        html.Append("<li>Install KeepstoneBackup from <b>https://github.com/nimatalebi/KeepstoneBackup/releases</b>.</li>");
         html.Append("<li>Download the backup (<code>.zip.aes</code>) and its <code>.sha256</code> file from the destination.</li>");
         html.Append("<li>Open <b>KeepstoneBackup Manager → Tools → Restore backup…</b>, choose the file, enter the password" + (keyFile is null ? string.Empty : " and select the key file (recreate it from the content above if needed)") + ".</li>");
         html.Append("<li>For databases, use <b>Restore database…</b> after extracting (SQL Server <code>.bak</code>, MongoDB <code>.archive</code>).</li>");

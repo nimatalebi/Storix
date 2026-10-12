@@ -45,6 +45,9 @@ public sealed class DedupFile
 public sealed class DedupSnapshot
 {
     public const string FormatName = "keepstonebackup-snapshot";
+
+    /// <summary>Written before the project was renamed from Storix.</summary>
+    public const string LegacyFormatName = "storix-snapshot";
     public const int CurrentVersion = 1;
     public const string Extension = ".snap";
     private static readonly byte[] Magic = "STXS"u8.ToArray();
@@ -102,7 +105,7 @@ public sealed class DedupSnapshot
 
         await using var gzip = new GZipStream(new MemoryStream(payload), CompressionMode.Decompress);
         var snapshot = await JsonSerializer.DeserializeAsync<DedupSnapshot>(gzip, KeepstoneBackupJson.Options, cancellationToken);
-        return snapshot is { Format: FormatName } ? snapshot : throw new InvalidDataException("Invalid KeepstoneBackup snapshot.");
+        return snapshot is { Format: FormatName or LegacyFormatName } ? snapshot : throw new InvalidDataException("Invalid KeepstoneBackup snapshot.");
     }
 
     public BackupIndex ToIndex(string name) => new()
@@ -119,7 +122,8 @@ public sealed class DedupSnapshot
 /// </summary>
 public sealed class DedupKeys
 {
-    private static readonly byte[] Context = "NT.KeepstoneBackup.Dedup.v1"u8.ToArray();
+    // Keeps the project's former name (Storix): it is part of the key derivation, so repositories made before the rename still open.
+    private static readonly byte[] Context = "NT.Storix.Dedup.v1"u8.ToArray();
     private readonly byte[]? _encryptionKey;
     private readonly byte[]? _macKey;
 

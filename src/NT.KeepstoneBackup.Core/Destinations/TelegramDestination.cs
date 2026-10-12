@@ -32,9 +32,12 @@ public sealed class TelegramCatalogEntry
 /// </summary>
 public sealed class TelegramCatalog
 {
-    // Keeps the project's former name (Storix): existing chats already hold a pinned catalog with this name.
-    public const string FormatName = "storix-telegram-catalog";
-    public const string FileName = "storix-catalog.json";
+    public const string FormatName = "keepstonebackup-telegram-catalog";
+    public const string FileName = "keepstonebackup-catalog.json";
+
+    // Catalogs pinned before the project was renamed from Storix.
+    public const string LegacyFormatName = "storix-telegram-catalog";
+    public const string LegacyFileName = "storix-catalog.json";
 
     public string Format { get; set; } = FormatName;
 
@@ -267,7 +270,7 @@ public sealed class TelegramDestination : IBackupDestination
                 using var buffer = new MemoryStream();
                 await _api.DownloadAsync(location.FileId, buffer, TimeSpan.FromMinutes(2), cancellationToken);
                 var catalog = JsonSerializer.Deserialize<TelegramCatalog>(buffer.ToArray(), KeepstoneBackupJson.Options);
-                if (catalog is { Format: TelegramCatalog.FormatName })
+                if (catalog is { Format: TelegramCatalog.FormatName or TelegramCatalog.LegacyFormatName })
                 {
                     catalog.Files = new Dictionary<string, TelegramCatalogEntry>(catalog.Files, StringComparer.OrdinalIgnoreCase);
                     return (catalog, location);
@@ -289,7 +292,7 @@ public sealed class TelegramDestination : IBackupDestination
         var chat = await _api.CallAsync("getChat", new Dictionary<string, string> { ["chat_id"] = _chatId }, cancellationToken);
         if (chat.TryGetProperty("pinned_message", out var pinned)
             && pinned.TryGetProperty("document", out var document)
-            && document.TryGetProperty("file_name", out var name) && name.GetString() == TelegramCatalog.FileName)
+            && document.TryGetProperty("file_name", out var name) && name.GetString() is TelegramCatalog.FileName or TelegramCatalog.LegacyFileName)
         {
             result.Add(new CatalogLocation(pinned.GetProperty("message_id").GetInt64(), document.GetProperty("file_id").GetString()!));
         }

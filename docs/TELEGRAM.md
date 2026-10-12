@@ -35,7 +35,7 @@ Click **Test connection**.
   destinations, so give such jobs a second destination (NAS, S3, ...).
 - Files up to 47 MB are sent as one document. Larger files are sent as `name.001`, `name.002`, … (the official
   Bot API accepts uploads up to 50 MB), without notification.
-- Bots cannot read the history of a chat, so KeepstoneBackup keeps a small **catalog** (`storix-catalog.json`) with the
+- Bots cannot read the history of a chat, so KeepstoneBackup keeps a small **catalog** (`keepstonebackup-catalog.json`) with the
   list of files and their message ids, sent to the chat and **pinned**. Retention uses it to delete old backups
   (their messages are deleted too). Do not unpin it.
 - One KeepstoneBackup installation per chat: jobs on the same machine can share a chat, but two machines writing to the same

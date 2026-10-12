@@ -66,15 +66,21 @@ public sealed class IncrementalState
     }
 }
 
-/// <summary>Metadata stored inside every incremental archive as <c>.storix/chain.json</c>.</summary>
+/// <summary>Metadata stored inside every incremental archive as <c>.keepstonebackup/chain.json</c>.</summary>
 public sealed class ChainInfo
 {
-    // The folder keeps the project's former name (Storix) so incremental chains written before the rename still restore.
-    public const string EntryName = ".storix/chain.json";
-    public const string DeletedEntryName = ".storix/deleted.txt";
+    public const string EntryName = ".keepstonebackup/chain.json";
+    public const string DeletedEntryName = ".keepstonebackup/deleted.txt";
 
     /// <summary>Archive entries under this folder are KeepstoneBackup metadata, never restored as files.</summary>
-    public const string MetadataFolder = ".storix/";
+    public const string MetadataFolder = ".keepstonebackup/";
+
+    // Archives written before the project was renamed from Storix.
+    public const string LegacyDeletedEntryName = ".storix/deleted.txt";
+    public const string LegacyMetadataFolder = ".storix/";
+
+    public static bool IsMetadata(string entryPath) =>
+        entryPath.StartsWith(MetadataFolder, StringComparison.Ordinal) || entryPath.StartsWith(LegacyMetadataFolder, StringComparison.Ordinal);
 
     public string Kind { get; set; } = "incremental";
 

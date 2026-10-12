@@ -195,7 +195,7 @@ public sealed partial class BackupJobRunner(
 
         // File index for browsing and single-file restores (encrypted like the archive).
         var indexPath = finalPath + BackupIndex.Extension;
-        await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries.Where(e => !e.Path.StartsWith(ChainInfo.MetadataFolder, StringComparison.Ordinal))] }
+        await new BackupIndex { Archive = fileName, Entries = [.. archive.Entries.Where(e => !ChainInfo.IsMetadata(e.Path))] }
             .WriteAsync(indexPath, job.Processing.Encrypt ? EncryptionSecret.Resolve(job.Processing) : null, cancellationToken);
         var indexItem = new UploadItem(indexPath, Path.GetFileName(indexPath), new FileInfo(indexPath).Length, SkipIfPresent: false);
 
