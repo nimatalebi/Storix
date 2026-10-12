@@ -6,7 +6,7 @@
 
 <p align="center">Open-source backup agent for Windows and Linux: websites, files and databases, encrypted, to wherever you keep backups.</p>
 
-> KeepstoneBackup was called **Storix** before version 1.1. Upgrading keeps your jobs, history and secrets: the new version uses the old data folder (`C:\ProgramData\Storix` or `/var/lib/storix`) when it finds one, still reads backups made by Storix, and hook scripts still get the `STORIX_*` variables.
+> KeepstoneBackup was called **Storix** up to version 1.0.0. Upgrading keeps your jobs, history and secrets: the new version uses the old data folder (`C:\ProgramData\Storix` or `/var/lib/storix`) when it finds one, still reads backups made by Storix, and hook scripts still get the `STORIX_*` variables.
 
 **KeepstoneBackup** is an open-source backup agent for Windows (with a Linux agent).
 A Windows service runs your backup jobs on a schedule. A Windows Forms app (**KeepstoneBackup Manager**) lets you set up jobs, see backup history and control the service.
