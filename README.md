@@ -1,15 +1,17 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Storix logo" width="112" height="112">
+  <img src="assets/logo.svg" alt="KeepstoneBackup logo" width="112" height="112">
 </p>
 
-<h1 align="center">Storix</h1>
+<h1 align="center">KeepstoneBackup</h1>
 
 <p align="center">Open-source backup agent for Windows and Linux: websites, files and databases, encrypted, to wherever you keep backups.</p>
 
-**Storix** is an open-source backup agent for Windows (with a Linux agent).
-A Windows service runs your backup jobs on a schedule. A Windows Forms app (**Storix Manager**) lets you set up jobs, see backup history and control the service.
+> KeepstoneBackup was called **Storix** before version 1.1. Upgrading keeps your jobs, history and secrets: the new version uses the old data folder (`C:\ProgramData\Storix` or `/var/lib/storix`) when it finds one, still reads backups made by Storix, and hook scripts still get the `STORIX_*` variables.
 
-Storix backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive**, **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint**, a **Telegram or Bale** channel (directly or through a Cloudflare Worker relay) or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
+**KeepstoneBackup** is an open-source backup agent for Windows (with a Linux agent).
+A Windows service runs your backup jobs on a schedule. A Windows Forms app (**KeepstoneBackup Manager**) lets you set up jobs, see backup history and control the service.
+
+KeepstoneBackup backs up **files and folders**, **SQL Server** databases (`.bak`), **MongoDB** (`mongodump`), **PostgreSQL**, **MySQL/MariaDB**, **Redis**, **SQLite** and **Windows server configuration** (IIS, registry, scheduled tasks, certificates). It can compress and encrypt each backup, then send it to a **local/UNC folder**, **FTP/FTPS**, **SFTP**, **Google Drive**, **Amazon S3 / S3-compatible storage** (Cloudflare R2, Wasabi, Backblaze B2, MinIO, Arvan…), **Azure Blob**, **WebDAV** (Nextcloud, NAS), **Dropbox**, **OneDrive / SharePoint**, a **Telegram or Bale** channel (directly or through a Cloudflare Worker relay) or any of the 40+ providers of **rclone**. Network shares can use their own credentials. It also retries failed steps, resumes interrupted uploads, verifies every backup, deletes old backups by your retention rules and keeps a full history in SQLite.
 
 [![build](https://github.com/nimatalebi/Storix/actions/workflows/build.yml/badge.svg)](https://github.com/nimatalebi/Storix/actions/workflows/build.yml)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
@@ -67,7 +69,7 @@ Backup Agent
     └── Notifications
 ```
 
-| Capability | How Storix handles it |
+| Capability | How KeepstoneBackup handles it |
 |---|---|
 | **Resume upload** | Uploads go to `<name>.partial` first. On retry, FTP and SFTP (and local folders) continue from the bytes already sent. Google Drive uses its resumable upload protocol. S3 uses multipart uploads; unfinished ones are aborted before a retry. |
 | **Retry** | The database dump and each upload are retried with exponential back-off (attempt count, first delay and multiplier are set per job). |
@@ -89,7 +91,7 @@ Backup Agent
 | **Bandwidth** | Upload limit per destination (KB/s) and an optional daily upload window per job (e.g. 22:00-06:00). |
 | **Job chains** | Run a job automatically after another job succeeds (e.g. copy files after a database dump). A destination that fails repeatedly is skipped for 30 minutes (circuit breaker). |
 | **Incremental backups** | File jobs can back up only the files that changed (size or modification time) since the previous backup, with a new full backup every N days. Incremental archives are named `.inc.zip` and carry the list of deleted files. Restoring one restores its chain (full + incrementals) automatically, from a destination or from a folder; retention never deletes a backup that a kept incremental depends on. A failed or partial run makes the next backup a full one. |
-| **Telegram / Bale** | An archive-only copy in a private channel, for disasters: files up to 47 MB are sent as one document (larger ones as .001, .002… parts) and listed in a pinned catalog used by retention. Storix does not restore from Telegram; download the files in the Telegram app and restore them from disk (parts are joined automatically). A Cloudflare Worker relay (`tools/telegram-relay`) helps when the server cannot reach Telegram; notifications can use it too. See [docs/TELEGRAM.md](docs/TELEGRAM.md). |
+| **Telegram / Bale** | An archive-only copy in a private channel, for disasters: files up to 47 MB are sent as one document (larger ones as .001, .002… parts) and listed in a pinned catalog used by retention. KeepstoneBackup does not restore from Telegram; download the files in the Telegram app and restore them from disk (parts are joined automatically). A Cloudflare Worker relay (`tools/telegram-relay`) helps when the server cannot reach Telegram; notifications can use it too. See [docs/TELEGRAM.md](docs/TELEGRAM.md). |
 | **Deduplication** | Optional "incremental forever" mode: files are split into content-defined chunks (FastCDC), compressed with zstd and encrypted (AES-256-GCM, keyed chunk ids). Only chunks a destination does not have yet are uploaded, in ~32 MB pack files; each backup is a small `.snap` snapshot. Every restored file is checked against its SHA-256; retention deletes snapshots and then packs no snapshot uses. Restore needs the snapshot and its packs (from the destination, or all in one folder). |
 | **Plugins** | Add your own sources and destinations as .NET class libraries in the `plugins` folder; their secret settings are encrypted like built-in ones. See [docs/PLUGINS.md](docs/PLUGINS.md) and the sample plugin. |
 | **Copy jobs (3-2-1)** | A copy job replicates another job's backups, still encrypted, from one of its destinations to other destinations (e.g. NAS → S3). Only missing backups are copied, each is checked against its SHA-256 first, and the copy job has its own retention. Chain it to the source job to copy right after each backup. |
@@ -126,7 +128,7 @@ The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highligh
 
 ```
 ┌──────────────────────┐         ┌───────────────────────────┐
-│  Storix Manager      │         │  Storix Service           │
+│  KeepstoneBackup Manager      │         │  KeepstoneBackup Service           │
 │  (WinForms, admin)   │         │  (Windows Service)        │
 │                      │         │                           │
 │  jobs / settings ────┼──┐   ┌──┼──► BackupScheduler        │
@@ -134,7 +136,7 @@ The full, prioritized backlog is in [docs/ROADMAP.md](docs/ROADMAP.md). Highligh
 │  "Run now" request ──┼┐││   │││ │   source → zip → AES →   │
 └──────────────────────┘│││   │││ │   sha256 → upload →      │
                         ▼▼▼   ▼▼▼ │   verify → retention     │
-                 %ProgramData%\Storix\storix.db (SQLite, WAL) │
+                 %ProgramData%\KeepstoneBackup\keepstonebackup.db (SQLite, WAL) │
                         └──────────┴──────────────────────────┘
 ```
 
@@ -144,15 +146,15 @@ The manager and the service share only the SQLite database. The manager saves jo
 
 | Project | Description |
 |---|---|
-| `src/NT.Storix.Core` | The engine: models, scheduling (Cronos), sources, processing, destinations, SQLite repositories, secret protection, import/export. |
-| `src/NT.Storix.Service` | Worker Service host that runs as the Windows service (`Storix.Service.exe`) or a systemd unit on Linux. Logs with Serilog to `%ProgramData%\Storix\logs` (`/var/lib/storix/logs`). |
-| `src/NT.Storix.WinForms` | Storix Manager (`Storix.Manager.exe`), the desktop UI. |
-| `src/NT.Storix.Cli` | `storix.exe` command-line tool (standalone restore, jobs, config as code). |
-| `tests/NT.Storix.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export, restore and the full pipeline. |
-| `samples/NT.Storix.Plugins.Sample` | Example source and destination plugin. |
-| `tests/NT.Storix.IntegrationTests` | Docker-based tests (Testcontainers) against real SFTP, FTP, SQL Server and MongoDB servers. |
+| `src/NT.KeepstoneBackup.Core` | The engine: models, scheduling (Cronos), sources, processing, destinations, SQLite repositories, secret protection, import/export. |
+| `src/NT.KeepstoneBackup.Service` | Worker Service host that runs as the Windows service (`KeepstoneBackup.Service.exe`) or a systemd unit on Linux. Logs with Serilog to `%ProgramData%\KeepstoneBackup\logs` (`/var/lib/keepstonebackup/logs`). |
+| `src/NT.KeepstoneBackup.WinForms` | KeepstoneBackup Manager (`KeepstoneBackup.Manager.exe`), the desktop UI. |
+| `src/NT.KeepstoneBackup.Cli` | `keepstonebackup.exe` command-line tool (standalone restore, jobs, config as code). |
+| `tests/NT.KeepstoneBackup.Core.Tests` | xUnit tests: encryption, archives, schedules, retention, persistence, import/export, restore and the full pipeline. |
+| `samples/NT.KeepstoneBackup.Plugins.Sample` | Example source and destination plugin. |
+| `tests/NT.KeepstoneBackup.IntegrationTests` | Docker-based tests (Testcontainers) against real SFTP, FTP, SQL Server and MongoDB servers. |
 
-All namespaces start with `NT.` (for example `NT.Storix.Core.Engine`).
+All namespaces start with `NT.` (for example `NT.KeepstoneBackup.Core.Engine`).
 
 ---
 
@@ -168,9 +170,9 @@ All namespaces start with `NT.` (for example `NT.Storix.Core.Engine`).
 
 ```powershell
 git clone https://github.com/nimatalebi/Storix.git
-cd Storix
-dotnet build Storix.sln
-dotnet test Storix.sln
+cd KeepstoneBackup
+dotnet build KeepstoneBackup.sln
+dotnet test KeepstoneBackup.sln
 ```
 
 ### Integration tests
@@ -178,12 +180,12 @@ dotnet test Storix.sln
 These tests start real SFTP, FTP, S3 (LocalStack), Azure Blob (Azurite), SQL Server, MongoDB (replica set), PostgreSQL, MySQL and Redis servers in Docker, plus WebDAV and rclone (rclone must be installed). For each one they back up, restore and compare the data. They are opt-in:
 
 ```bash
-STORIX_INTEGRATION_TESTS=1 dotnet test tests/NT.Storix.IntegrationTests
+KEEPSTONEBACKUP_INTEGRATION_TESTS=1 dotnet test tests/NT.KeepstoneBackup.IntegrationTests
 ```
 
 ### Publish and install
 
-The easiest way: download `Storix-<version>-x64.msi` from [GitHub Releases](https://github.com/nimatalebi/Storix/releases). The installer installs and starts the service and adds **Storix Manager** to the Start menu.
+The easiest way: download `KeepstoneBackup-<version>-x64.msi` from [GitHub Releases](https://github.com/nimatalebi/Storix/releases). The installer installs and starts the service and adds **KeepstoneBackup Manager** to the Start menu.
 
 To build it yourself:
 
@@ -196,46 +198,46 @@ Or publish without an installer:
 
 ```powershell
 # Publish the service and the manager into one folder
-./build/publish.ps1 -Output C:\Tools\Storix
+./build/publish.ps1 -Output C:\Tools\KeepstoneBackup
 
 # Start the manager (it asks for administrator rights)
-C:\Tools\Storix\Storix.Manager.exe
+C:\Tools\KeepstoneBackup\KeepstoneBackup.Manager.exe
 ```
 
 In the manager, open the **Service** tab and click **Install**, then **Start**.
 You can also install the service without the UI:
 
 ```powershell
-./build/install-service.ps1 -Path C:\Tools\Storix\Storix.Service.exe
+./build/install-service.ps1 -Path C:\Tools\KeepstoneBackup\KeepstoneBackup.Service.exe
 ```
 
 The service runs as `LocalSystem`, uses *Automatic (Delayed Start)* and restarts automatically if it fails.
 
 ### Linux agent (systemd)
 
-The service and the CLI also run on Linux (x64) as a headless agent; jobs are managed with the CLI (config as code: `storix apply`, `storix run`, `storix history`…). Sources that need Windows (VSS, SQL Server on Windows paths, Hyper-V, Windows system) are not available there.
+The service and the CLI also run on Linux (x64) as a headless agent; jobs are managed with the CLI (config as code: `keepstonebackup apply`, `keepstonebackup run`, `keepstonebackup history`…). Sources that need Windows (VSS, SQL Server on Windows paths, Hyper-V, Windows system) are not available there.
 
 ```sh
-tar -xzf storix-<version>-linux-x64.tar.gz
-sudo ./storix-<version>-linux-x64/install.sh      # installs to /opt/storix and starts storix.service
-sudo storix apply my-jobs.json                    # add jobs; ${env:NAME} placeholders keep secrets out of the file
-journalctl -u storix -f
+tar -xzf keepstonebackup-<version>-linux-x64.tar.gz
+sudo ./keepstonebackup-<version>-linux-x64/install.sh      # installs to /opt/keepstonebackup and starts keepstonebackup.service
+sudo keepstonebackup apply my-jobs.json                    # add jobs; ${env:NAME} placeholders keep secrets out of the file
+journalctl -u keepstonebackup -f
 ```
 
-Data, logs and the database live in `/var/lib/storix`. Secrets in the database are encrypted with AES-256-GCM using a random machine key (`/var/lib/storix/secret.key`, readable by root only). `sudo ./install.sh --uninstall` removes the program and keeps the data. Build the package yourself with `./build/package-linux.sh <version>`.
+Data, logs and the database live in `/var/lib/keepstonebackup`. Secrets in the database are encrypted with AES-256-GCM using a random machine key (`/var/lib/keepstonebackup/secret.key`, readable by root only). `sudo ./install.sh --uninstall` removes the program and keeps the data. Build the package yourself with `./build/package-linux.sh <version>`.
 
 ### Releases
 
 Push a tag like `v1.2.0` and the `release` workflow builds the MSI, the portable ZIP, the standalone CLI and the Linux package, then publishes a GitHub release. The release notes come from `docs/releases/v1.2.0.md` when that file exists (otherwise they are generated from the commits); a version with a suffix such as `-preview` is published as a pre-release. A release can also be made from the Actions tab: run the `release` workflow with the version and tick **publish**; it creates the tag on that commit.
-To sign the binaries, add the repository secrets `STORIX_SIGN_CERT` (base64-encoded `.pfx`) and `STORIX_SIGN_PASSWORD`.
+To sign the binaries, add the repository secrets `KEEPSTONEBACKUP_SIGN_CERT` (base64-encoded `.pfx`) and `KEEPSTONEBACKUP_SIGN_PASSWORD`.
 
 ### Development
 
 To run the service as a normal console app with its own data folder:
 
 ```powershell
-$env:STORIX_DATA_DIR = "$PWD\.data"
-dotnet run --project src/NT.Storix.Service
+$env:KEEPSTONEBACKUP_DATA_DIR = "$PWD\.data"
+dotnet run --project src/NT.KeepstoneBackup.Service
 ```
 
 ---
@@ -246,7 +248,7 @@ dotnet run --project src/NT.Storix.Service
 2. **Schedule**: Manual, Daily, Weekly or a cron expression (`minute hour day month weekday`), with an optional time zone. The editor shows the next three run times.
 3. **Source**
    - **Files**: files and folders, one per line, plus exclude patterns (`*.tmp`, `node_modules`…).
-   - **SQL Server**: a connection string and databases. **Load databases** lists them from the server. The `.bak` file is written by the SQL Server engine, so when the server is remote, set a **backup directory** (UNC path) that both SQL Server and Storix can reach.
+   - **SQL Server**: a connection string and databases. **Load databases** lists them from the server. The `.bak` file is written by the SQL Server engine, so when the server is remote, set a **backup directory** (UNC path) that both SQL Server and KeepstoneBackup can reach.
    - **MongoDB**: a connection string, an optional database and optional `--oplog`.
 4. **Processing**: compression (ZIP levels or zstd), AES-256 encryption and verification.
 5. **Destinations**: add one or more. **Test connection** checks the settings.
@@ -257,13 +259,13 @@ The **Jobs** tab shows a one-line summary (how many jobs are OK, need attention 
 
 Every destination type has a **setup guide** next to its settings: where to create the credentials (Google Cloud, Dropbox App Console, Azure app registrations, S3 keys, Telegram bot…), where to sign in, and the pitfalls, with direct links.
 
-**New** (Ctrl+N) opens the template gallery: 25 templates shown as cards, grouped by category (websites, databases, files and folders, server and virtual machines, off-site copies), each with its schedule, source, destinations and encryption at a glance, and searchable in English and Persian. The templates cover websites, WordPress, MongoDB, SQL Server point-in-time chain, PostgreSQL, MySQL, Redis, SQLite, file servers, deduplicated archives, Windows configuration, Docker, Hyper-V, off-site copies). The first card, **Set up several backups at once**, is a wizard: tick IIS websites detected on the server, MongoDB or SQL Server databases listed from the server, or folders; choose the destination(s), schedule, retention and encryption once; Storix creates one job per item with staggered start times (for example 3 websites and 3 MongoDB databases to Google Drive, starting 02:00, 02:15, 02:30…).
+**New** (Ctrl+N) opens the template gallery: 25 templates shown as cards, grouped by category (websites, databases, files and folders, server and virtual machines, off-site copies), each with its schedule, source, destinations and encryption at a glance, and searchable in English and Persian. The templates cover websites, WordPress, MongoDB, SQL Server point-in-time chain, PostgreSQL, MySQL, Redis, SQLite, file servers, deduplicated archives, Windows configuration, Docker, Hyper-V, off-site copies). The first card, **Set up several backups at once**, is a wizard: tick IIS websites detected on the server, MongoDB or SQL Server databases listed from the server, or folders; choose the destination(s), schedule, retention and encryption once; KeepstoneBackup creates one job per item with staggered start times (for example 3 websites and 3 MongoDB databases to Google Drive, starting 02:00, 02:15, 02:30…).
 
 The **Dashboard** tab shows the success rate of the last 30 days, the space each job and each destination takes (estimated from the run history and the retention policy), the daily growth of the backup size and a 30-day forecast.
 
-Storix Manager is available in **English and Persian** (right-to-left layout) with a **light, dark or system** theme: **Settings → Appearance** (per Windows user; restart the manager to apply). By default the language follows Windows. Some longer help texts and messages are still English only; translations are welcome.
+KeepstoneBackup Manager is available in **English and Persian** (right-to-left layout) with a **light, dark or system** theme: **Settings → Appearance** (per Windows user; restart the manager to apply). By default the language follows Windows. Some longer help texts and messages are still English only; translations are welcome.
 
-While Storix Manager is open, a tray icon shows the overall status (OK, running, failed), offers **Run now** for every job and pops up a notice when a backup fails. Minimizing the window hides it to the tray. Start the manager with `Storix.Manager.exe --tray` to open it straight into the tray, for example from a scheduled task at log-on (the manager needs administrator rights, so the classic *Run* registry key does not work).
+While KeepstoneBackup Manager is open, a tray icon shows the overall status (OK, running, failed), offers **Run now** for every job and pops up a notice when a backup fails. Minimizing the window hides it to the tray. Start the manager with `KeepstoneBackup.Manager.exe --tray` to open it straight into the tray, for example from a scheduled task at log-on (the manager needs administrator rights, so the classic *Run* registry key does not work).
 
 ### Backup files
 
@@ -274,7 +276,7 @@ Each run produces:
 <job-name>_<yyyyMMdd_HHmmss>.zip.sha256
 ```
 
-With **Zstd** or **ZstdSmallest** compression the archive is `.zip.zst` (`.zip.zst.aes` when encrypted): a normal ZIP with stored entries, wrapped in a single Zstandard frame. Zstd (level 3) is usually as small as ZIP *Optimal* and several times faster; ZstdSmallest (level 19) is slower to create but gives the smallest files. Without Storix, run `zstd -d file.zip.zst` and open the ZIP with any tool. Older `.zip` backups keep working.
+With **Zstd** or **ZstdSmallest** compression the archive is `.zip.zst` (`.zip.zst.aes` when encrypted): a normal ZIP with stored entries, wrapped in a single Zstandard frame. Zstd (level 3) is usually as small as ZIP *Optimal* and several times faster; ZstdSmallest (level 19) is slower to create but gives the smallest files. Without KeepstoneBackup, run `zstd -d file.zip.zst` and open the ZIP with any tool. Older `.zip` backups keep working.
 
 Every backup also gets a `<name>.index` file: a compressed list of the files it contains (encrypted like the archive). The manager uses it to browse, search and restore single files.
 
@@ -289,7 +291,7 @@ In the manager, open **Tools → Restore backup…** (or click **Restore…** on
 1. Choose a job and a destination, click **Load backups** and pick one. Or choose a backup file on disk.
    Click **Browse files…** to search inside the backup and pick single files or folders to restore. Only a small encrypted index file is downloaded for this.
 2. Choose an empty target folder and enter the encryption password if the backup is encrypted.
-3. Click **Restore**. Storix downloads the backup, verifies the SHA-256 checksum, decrypts it and extracts it.
+3. Click **Restore**. KeepstoneBackup downloads the backup, verifies the SHA-256 checksum, decrypts it and extracts it.
 4. If the backup contains databases, click **Restore database…**:
    - SQL Server: `RESTORE DATABASE ... WITH MOVE` under a new name (or replacing the existing one).
    - MongoDB: `mongorestore`, optionally into a different database.
@@ -300,33 +302,33 @@ Without the manager:
 2. Decrypt `.zip.aes` files with **Tools → Decrypt backup file…**.
 3. For `.zip.zst` files, run `zstd -d` first. Extract the ZIP, then use `RESTORE DATABASE` or `mongorestore --archive=...`.
 
-The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.Storix.Core/Processing/AesFileEncryptor.cs):
+The encrypted file format is documented in [`AesFileEncryptor.cs`](src/NT.KeepstoneBackup.Core/Processing/AesFileEncryptor.cs):
 
 - Version 1 (password): `"STRX" | 1 | iterations | salt | IV | AES-256-CBC ciphertext | HMAC-SHA256`
 - Version 2 (public key): `"STRX" | 2 | key id | RSA-OAEP-wrapped data key | IV | AES-256-CBC ciphertext | HMAC-SHA256`
 
-**Public-key mode (ransomware protection):** generate a key pair in the job editor (**Processing → Generate key pair…**) or with `storix keygen --out private.pem --passphrase …`. The server keeps only the public key, and you store the private key file offline. Even an attacker who takes over the server cannot decrypt the old backups. To restore, select the private key file and enter its passphrase.
+**Public-key mode (ransomware protection):** generate a key pair in the job editor (**Processing → Generate key pair…**) or with `keepstonebackup keygen --out private.pem --passphrase …`. The server keeps only the public key, and you store the private key file offline. Even an attacker who takes over the server cannot decrypt the old backups. To restore, select the private key file and enter its passphrase.
 
 > **Keep your encryption passwords safe.** Without the password (and the key file, if you use one), an encrypted backup cannot be restored. In the job editor, **Processing → Recovery sheet…** prints everything needed for a restore. You can also add a random **key file**, which is combined with the password.
 
 ### Command line
 
-`storix.exe` is installed next to the manager. The release page also offers `storix-<version>-x64.exe`, a single self-contained file for disaster recovery. With only that file, the backup and the password, you can verify, list and restore backups on any Windows machine:
+`keepstonebackup.exe` is installed next to the manager. The release page also offers `keepstonebackup-<version>-x64.exe`, a single self-contained file for disaster recovery. With only that file, the backup and the password, you can verify, list and restore backups on any Windows machine:
 
 ```powershell
-storix verify   web_20260101_010000.zip.aes --password-env STORIX_PW
-storix list-files web_20260101_010000.zip.aes --password-env STORIX_PW
-storix restore  web_20260101_010000.zip.aes --to D:\restore --include "wwwroot/web.config" --password-env STORIX_PW
+keepstonebackup verify   web_20260101_010000.zip.aes --password-env KEEPSTONEBACKUP_PW
+keepstonebackup list-files web_20260101_010000.zip.aes --password-env KEEPSTONEBACKUP_PW
+keepstonebackup restore  web_20260101_010000.zip.aes --to D:\restore --include "wwwroot/web.config" --password-env KEEPSTONEBACKUP_PW
 ```
 
-Job commands use the Storix database of the machine:
+Job commands use the KeepstoneBackup database of the machine:
 
 ```powershell
-storix jobs
-storix run "SQL Server nightly" --wait        # queue and wait for the result
-storix run "SQL Server nightly" --dry-run     # what would happen, nothing is written
-storix history --limit 50
-storix cancel "SQL Server nightly"
+keepstonebackup jobs
+keepstonebackup run "SQL Server nightly" --wait        # queue and wait for the result
+keepstonebackup run "SQL Server nightly" --dry-run     # what would happen, nothing is written
+keepstonebackup history --limit 50
+keepstonebackup cancel "SQL Server nightly"
 ```
 
 ### Config as code
@@ -334,19 +336,19 @@ storix cancel "SQL Server nightly"
 Job files (the export format) can be kept in version control. Write secrets as `${env:NAME}` placeholders:
 
 ```json
-"processing": { "encrypt": true, "encryptionPassword": "${env:STORIX_ARCHIVE_PASSWORD}" }
+"processing": { "encrypt": true, "encryptionPassword": "${env:KEEPSTONEBACKUP_ARCHIVE_PASSWORD}" }
 ```
 
 ```powershell
-storix validate jobs.storix.json    # checks every job, reports missing variables
-storix apply    jobs.storix.json    # imports the jobs, resolving the placeholders
+keepstonebackup validate jobs.keepstonebackup.json    # checks every job, reports missing variables
+keepstonebackup apply    jobs.keepstonebackup.json    # imports the jobs, resolving the placeholders
 ```
 
 The manager also offers the **template gallery** (see above) and a **Dry run** button.
 
 ### Import / export
 
-**File → Export configuration** saves every job (and the global settings) to a `.storix.json` file:
+**File → Export configuration** saves every job (and the global settings) to a `.keepstonebackup.json` file:
 
 - **Without secrets**: passwords, connection strings and encryption keys are removed.
 - **With secrets**: they are kept, encrypted with a passphrase you choose.
@@ -357,15 +359,15 @@ The manager also offers the **template gallery** (see above) and a **Dry run** b
 
 ### Local API
 
-The service listens on a local named pipe (`\\.\pipe\Storix`; a Unix socket on Linux) that only administrators and SYSTEM (Linux: root) can open. The manager, the tray icon and the CLI use it to start, cancel and drill jobs immediately and to read what is running (`storix status`). Requests are still recorded in the database, so when the service is not reachable they are simply picked up at its next check.
+The service listens on a local named pipe (`\\.\pipe\KeepstoneBackup`; a Unix socket on Linux) that only administrators and SYSTEM (Linux: root) can open. The manager, the tray icon and the CLI use it to start, cancel and drill jobs immediately and to read what is running (`keepstonebackup status`). Requests are still recorded in the database, so when the service is not reachable they are simply picked up at its next check.
 
 ### Updates
 
-Storix Manager checks the GitHub releases once a day (turn it off, or opt in to pre-releases, under **Settings → Updates**; **Help → Check for updates** checks now). **Download and install** downloads the MSI, checks it against the release's `SHA256SUMS.txt` and verifies its Authenticode signature: an invalid signature, or a signer other than the one of the installed version, is refused. Unsigned releases are only installed after you confirm. The service never updates itself.
+KeepstoneBackup Manager checks the GitHub releases once a day (turn it off, or opt in to pre-releases, under **Settings → Updates**; **Help → Check for updates** checks now). **Download and install** downloads the MSI, checks it against the release's `SHA256SUMS.txt` and verifies its Authenticode signature: an invalid signature, or a signer other than the one of the installed version, is refused. Unsigned releases are only installed after you confirm. The service never updates itself.
 
 ### Metrics and tracing
 
-Metrics and tracing are configured under **Settings → Monitoring** in Storix Manager, or in the `observability` section of an exported configuration:
+Metrics and tracing are configured under **Settings → Monitoring** in KeepstoneBackup Manager, or in the `observability` section of an exported configuration:
 
 ```json
 "observability": {
@@ -376,13 +378,13 @@ Metrics and tracing are configured under **Settings → Monitoring** in Storix M
 }
 ```
 
-With metrics enabled the service serves Prometheus text format at `http://localhost:9464/metrics`. Remote access needs a URL ACL (`netsh http add urlacl url=http://+:9464/ user=...`) when the service does not run as LocalSystem. Warnings and errors are also written to the Windows Event Log under the source `Storix`. When `otlpEndpoint` is set, each backup run and upload is exported as an OpenTelemetry trace (activity source `NT.Storix`); restart the service after changing it.
+With metrics enabled the service serves Prometheus text format at `http://localhost:9464/metrics`. Remote access needs a URL ACL (`netsh http add urlacl url=http://+:9464/ user=...`) when the service does not run as LocalSystem. Warnings and errors are also written to the Windows Event Log under the source `KeepstoneBackup`. When `otlpEndpoint` is set, each backup run and upload is exported as an OpenTelemetry trace (activity source `NT.KeepstoneBackup`); restart the service after changing it.
 
 ## Security notes
 
-- Secrets in `storix.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure. On Linux they are encrypted with a root-only machine key instead (see *Linux agent*).
-- `%ProgramData%\Storix` should be writable by administrators only.
-- **Service → Run as account…** runs the service as Network Service, a dedicated user or a group Managed Service Account (gMSA). Storix grants only *Log on as a service*, Modify on its data folder and, optionally, Backup Operators membership.
+- Secrets in `keepstonebackup.db` are encrypted with Windows DPAPI in machine scope, so the database file is useless on another computer. Anyone with administrator rights on the machine can still read them. Keep the machine secure. On Linux they are encrypted with a root-only machine key instead (see *Linux agent*).
+- `%ProgramData%\KeepstoneBackup` should be writable by administrators only.
+- **Service → Run as account…** runs the service as Network Service, a dedicated user or a group Managed Service Account (gMSA). KeepstoneBackup grants only *Log on as a service*, Modify on its data folder and, optionally, Backup Operators membership.
 - **Settings → Ask for my Windows password…** requires Windows re-authentication before restores, deletions, exports with secrets and service changes. Failed confirmations are written to the audit log.
 - For FTP, prefer **FTPS**, or better, **SFTP**. Enable *Accept any certificate* only for trusted self-signed servers. For SFTP, set the host key fingerprint.
 - **Dropbox / OneDrive** use OAuth with PKCE: register your own app (Dropbox App Console / Azure app registration, public client) with the redirect URI `http://localhost:53682/`, enter its key/client ID and click **Sign in**. Refresh tokens are stored encrypted.
@@ -394,20 +396,20 @@ With metrics enabled the service serves Prometheus text format at `http://localh
 
 ## Feedback & contact
 
-Storix is a community project, and your feedback shapes what comes next.
+KeepstoneBackup is a community project, and your feedback shapes what comes next.
 
 - **Bugs and feature requests:** [open an issue on GitHub](https://github.com/nimatalebi/Storix/issues/new)
 - **Questions and private feedback:** [nimatweb@gmail.com](mailto:nimatweb@gmail.com)
-- **In the app:** open **Help → Send feedback…**. It creates a GitHub issue or an e-mail with the Storix version and Windows version filled in. You review it before anything is sent.
+- **In the app:** open **Help → Send feedback…**. It creates a GitHub issue or an e-mail with the KeepstoneBackup version and Windows version filled in. You review it before anything is sent.
 
 Please never include passwords, connection strings or encryption keys in an issue.
 
 ## About
 
-Storix is built by the **Storix Contributors** and developed openly at
+KeepstoneBackup is built by the **KeepstoneBackup Contributors** and developed openly at
 **[github.com/nimatalebi/Storix](https://github.com/nimatalebi/Storix)**.
 The goal is a simple, dependable, fully open-source backup agent for Windows servers and workstations.
-Open **Help → About Storix** in the manager to see the version, the license and the project links.
+Open **Help → About KeepstoneBackup** in the manager to see the version, the license and the project links.
 
 See the [roadmap](docs/ROADMAP.md) for what is planned next.
 
@@ -424,4 +426,4 @@ To add a new destination (for example S3), implement `IBackupDestination`, add i
 
 ## License
 
-Storix is released under the [MIT License](LICENSE) by the Storix Contributors. You are free to use, copy, modify and distribute it, including commercially.
+KeepstoneBackup is released under the [MIT License](LICENSE) by the KeepstoneBackup Contributors. You are free to use, copy, modify and distribute it, including commercially.

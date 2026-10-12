@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NT.KeepstoneBackup.Core.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NT.KeepstoneBackup.Core\NT.KeepstoneBackup.Core.csproj" />
+    <ProjectReference Include="..\..\src\NT.KeepstoneBackup.Cli\NT.KeepstoneBackup.Cli.csproj" />
+    <!-- Built but not referenced: the plugin tests load it from disk like the service does. -->
+    <ProjectReference Include="..\..\samples\NT.KeepstoneBackup.Plugins.Sample\NT.KeepstoneBackup.Plugins.Sample.csproj" ReferenceOutputAssembly="false" OutputItemType="SamplePlugin" />
+  </ItemGroup>
+
+  <Target Name="CopySamplePlugin" AfterTargets="Build">
+    <Copy SourceFiles="@(SamplePlugin)" DestinationFolder="$(OutDir)sample-plugin" />
+  </Target>
+
+</Project>

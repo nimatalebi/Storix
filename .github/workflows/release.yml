@@ -36,18 +36,18 @@ jobs:
           "tag=v$v" >> $env:GITHUB_OUTPUT
 
       - name: Test
-        run: dotnet test Storix.sln -c Release
+        run: dotnet test KeepstoneBackup.sln -c Release
 
       - name: Package
         shell: pwsh
         env:
-          STORIX_SIGN_CERT: ${{ secrets.STORIX_SIGN_CERT }}
-          STORIX_SIGN_PASSWORD: ${{ secrets.STORIX_SIGN_PASSWORD }}
+          KEEPSTONEBACKUP_SIGN_CERT: ${{ secrets.STORIX_SIGN_CERT }}
+          KEEPSTONEBACKUP_SIGN_PASSWORD: ${{ secrets.STORIX_SIGN_PASSWORD }}
         run: ./build/package.ps1 -Version ${{ steps.version.outputs.value }} -Output artifacts
 
       - uses: actions/upload-artifact@v4
         with:
-          name: storix-${{ steps.version.outputs.value }}
+          name: keepstonebackup-${{ steps.version.outputs.value }}
           path: |
             artifacts/*.msi
             artifacts/*.zip
@@ -68,7 +68,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: Storix ${{ steps.version.outputs.value }}
+          name: KeepstoneBackup ${{ steps.version.outputs.value }}
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           prerelease: ${{ contains(steps.version.outputs.value, '-') }}
@@ -101,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: storix-${{ steps.version.outputs.value }}-linux
+          name: keepstonebackup-${{ steps.version.outputs.value }}-linux
           path: |
             artifacts/*.tar.gz
             artifacts/SHA256SUMS-linux.txt

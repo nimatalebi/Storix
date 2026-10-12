@@ -1,4 +1,4 @@
-# Storix roadmap
+# KeepstoneBackup roadmap
 
 This is the prioritized backlog. A checked item exists in the code today.
 Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-done).
@@ -20,10 +20,10 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 - [x] Build and test on Windows in CI; warnings are errors
 - [x] Integration tests with Testcontainers: atmoz/sftp, FTP, SQL Server, MongoDB replica set (backup → restore → byte compare)
 - [x] Fault-injection tests: service killed mid-run, network drop + resume, disk full, cancellation, corrupted/truncated archives
-- [x] Large-file test above 4 GB (ZIP64 + encryption, opt-in with `STORIX_LARGE_TESTS=1`) and files that change while archived
+- [x] Large-file test above 4 GB (ZIP64 + encryption, opt-in with `KEEPSTONEBACKUP_LARGE_TESTS=1`) and files that change while archived
 - [x] Scheduler tests around DST changes and time zones; optional catch-up of missed runs
 - [x] MSI installer (WiX), GitHub Releases on `v*` tags, portable ZIP, SHA256SUMS
-- [ ] Signed binaries (the workflow signs automatically once the `STORIX_SIGN_CERT` / `STORIX_SIGN_PASSWORD` secrets are set)
+- [ ] Signed binaries (the workflow signs automatically once the `KEEPSTONEBACKUP_SIGN_CERT` / `KEEPSTONEBACKUP_SIGN_PASSWORD` secrets are set)
 
 ## P1: missing essentials
 
@@ -73,7 +73,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ### Restore experience
 - [x] Browse and search inside a backup; restore single files
-- [x] Standalone restore CLI (`storix-<version>-x64.exe`) that needs no install and no database
+- [x] Standalone restore CLI (`keepstonebackup-<version>-x64.exe`) that needs no install and no database
 - [x] Restore preview (size, file count)
 
 ### Monitoring and UX
@@ -88,7 +88,7 @@ Every item follows the [definition of done](../CONTRIBUTING.md#definition-of-don
 
 ### Architecture and ecosystem
 - [x] Named-pipe API between the UI and the service (immediate requests and live status; the database queue remains as fallback)
-- [x] CLI: `storix jobs | run | history | cancel | drill | restore | verify | list-files | decrypt | export | import`
+- [x] CLI: `keepstonebackup jobs | run | history | cancel | drill | restore | verify | list-files | decrypt | export | import`
 - [x] Config as code (JSON job files with `${env:NAME}` secrets, `validate` and `apply` commands)
 - [x] Plugin system for sources and destinations ([docs/PLUGINS.md](PLUGINS.md))
 - [x] Circuit breaker per destination; job chains

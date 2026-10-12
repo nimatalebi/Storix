@@ -1,6 +1,6 @@
 # Backups to Telegram (or Bale)
 
-Storix can store backups as documents in a private Telegram channel or group. This is handy as a free,
+KeepstoneBackup can store backups as documents in a private Telegram channel or group. This is handy as a free,
 off-site copy for small and medium backups. Always turn on **encryption** for these jobs: anyone in the chat
 can download the files.
 
@@ -30,24 +30,24 @@ Click **Test connection**.
 
 ## How it works
 
-- Telegram is an **archive-only** copy, meant for disasters: Storix uploads to it and applies retention, but it
+- Telegram is an **archive-only** copy, meant for disasters: KeepstoneBackup uploads to it and applies retention, but it
   never downloads from it. Normal restores, restore drills, copy jobs and deduplication use the job's other
   destinations, so give such jobs a second destination (NAS, S3, ...).
 - Files up to 47 MB are sent as one document. Larger files are sent as `name.001`, `name.002`, … (the official
   Bot API accepts uploads up to 50 MB), without notification.
-- Bots cannot read the history of a chat, so Storix keeps a small **catalog** (`storix-catalog.json`) with the
+- Bots cannot read the history of a chat, so KeepstoneBackup keeps a small **catalog** (`storix-catalog.json`) with the
   list of files and their message ids, sent to the chat and **pinned**. Retention uses it to delete old backups
   (their messages are deleted too). Do not unpin it.
-- One Storix installation per chat: jobs on the same machine can share a chat, but two machines writing to the same
+- One KeepstoneBackup installation per chat: jobs on the same machine can share a chat, but two machines writing to the same
   chat can overwrite each other's catalog.
 
 ## Restoring from Telegram
 
 1. In the Telegram app (desktop or phone), download all files of the backup into one folder: every part
    (`.001`, `.002`, …) and the `.sha256` file. The app has no 20 MB limit.
-2. In Storix Manager: **Restore → From a backup file**, choose the `.001` file (or the file itself when there are
-   no parts). Storix joins the parts, checks the SHA-256 and restores. Without the manager:
-   `storix restore backup.zip.aes.001 --to D:\restore --password-env STORIX_PW`.
+2. In KeepstoneBackup Manager: **Restore → From a backup file**, choose the `.001` file (or the file itself when there are
+   no parts). KeepstoneBackup joins the parts, checks the SHA-256 and restores. Without the manager:
+   `keepstonebackup restore backup.zip.aes.001 --to D:\restore --password-env KEEPSTONEBACKUP_PW`.
 
 ## Limits
 
@@ -64,7 +64,7 @@ without the shared key.
 
 **With the Cloudflare dashboard:**
 
-1. *Workers & Pages → Create → Create Worker*, name it (e.g. `storix-relay`) and deploy.
+1. *Workers & Pages → Create → Create Worker*, name it (e.g. `keepstonebackup-relay`) and deploy.
 2. *Edit code*, replace everything with the content of `tools/telegram-relay/worker.js` and deploy.
 3. *Settings → Variables and secrets*: add a **secret** `RELAY_KEY` with a long random value. Optionally add
    `ALLOWED_BOTS` (your bot id, the digits before `:` in the token) and, for Bale,
@@ -78,10 +78,10 @@ npx wrangler deploy
 npx wrangler secret put RELAY_KEY
 ```
 
-In Storix set **API base URL** to the worker URL (e.g. `https://storix-relay.<you>.workers.dev`) and
+In KeepstoneBackup set **API base URL** to the worker URL (e.g. `https://keepstonebackup-relay.<you>.workers.dev`) and
 **Relay key** to the same `RELAY_KEY`. The same two settings exist on Telegram/Bale **notification channels**
 (*Settings → Chat and webhook channels*), so notifications can use the relay too.
 
 Security notes: the bot token travels inside the URL to the relay (over HTTPS) and the relay sees the
-(encrypted) backup data passing through, so deploy it in your own Cloudflare account. Storix never writes the
+(encrypted) backup data passing through, so deploy it in your own Cloudflare account. KeepstoneBackup never writes the
 token to logs or error messages.

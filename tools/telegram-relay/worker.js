@@ -1,10 +1,10 @@
-// Storix Telegram relay for Cloudflare Workers.
+// KeepstoneBackup Telegram relay for Cloudflare Workers.
 //
 // Forwards Bot API calls (/bot<token>/<method>) and file downloads (/file/bot<token>/<path>) to the Telegram
 // Bot API, for servers that cannot reach api.telegram.org directly. Nothing is stored.
 //
 // Settings (Workers > Settings > Variables):
-//   RELAY_KEY     required secret; Storix sends it in the X-Storix-Relay-Key header
+//   RELAY_KEY     required secret; KeepstoneBackup sends it in the X-Storix-Relay-Key header
 //   ALLOWED_BOTS  optional, comma-separated bot ids (the digits before ':' in the token)
 //   UPSTREAM      optional, default https://api.telegram.org (e.g. https://tapi.bale.ai for Bale)
 

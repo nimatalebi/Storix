@@ -1,10 +1,10 @@
-# Writing a Storix plugin
+# Writing a KeepstoneBackup plugin
 
 Plugins add **sources** (something to back up) and **destinations** (somewhere to store backups). A plugin is a
-.NET 10 class library that references `NT.Storix.Core` and contains one or more public classes implementing
-`ISourcePlugin` or `IDestinationPlugin` (namespace `NT.Storix.Core.Plugins`) with a parameterless constructor.
+.NET 10 class library that references `NT.KeepstoneBackup.Core` and contains one or more public classes implementing
+`ISourcePlugin` or `IDestinationPlugin` (namespace `NT.KeepstoneBackup.Core.Plugins`) with a parameterless constructor.
 
-A complete example is in [`samples/NT.Storix.Plugins.Sample`](../samples/NT.Storix.Plugins.Sample).
+A complete example is in [`samples/NT.KeepstoneBackup.Plugins.Sample`](../samples/NT.KeepstoneBackup.Plugins.Sample).
 
 ## Project file
 
@@ -15,8 +15,8 @@ A complete example is in [`samples/NT.Storix.Plugins.Sample`](../samples/NT.Stor
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Shared with the host: never ship NT.Storix.Core.dll with the plugin. -->
-    <ProjectReference Include="path\to\NT.Storix.Core.csproj">
+    <!-- Shared with the host: never ship NT.KeepstoneBackup.Core.dll with the plugin. -->
+    <ProjectReference Include="path\to\NT.KeepstoneBackup.Core.csproj">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
@@ -45,20 +45,20 @@ public sealed class MyDestination : IDestinationPlugin
 - A **source** returns the files to archive from `IBackupSource.PrepareAsync`. Write temporary files (dumps,
   exports) into `SourceContext.StagingDirectory` and mark them `DeleteAfterRun`.
 - A **destination** implements `IBackupDestination`: `ListAsync`, `UploadAsync`, `DownloadAsync`, `DeleteAsync`
-  and `TestAsync`. Storix verifies every upload by listing the destination and comparing sizes, so `ListAsync`
+  and `TestAsync`. KeepstoneBackup verifies every upload by listing the destination and comparing sizes, so `ListAsync`
   must return exact sizes. Upload to a temporary name and rename when the protocol allows it.
 - Settings marked `Secret` are entered in the *Secret settings* field, encrypted in the database like every other
   secret, removed from exports without a passphrase and never logged. Do not log them yourself.
-- Throw exceptions with a clear message on failure; Storix retries according to the job's retry policy.
+- Throw exceptions with a clear message on failure; KeepstoneBackup retries according to the job's retry policy.
 
 ## Installing
 
-Copy the plugin DLL (and its own dependencies, if any) into a `plugins` folder next to the Storix programs:
+Copy the plugin DLL (and its own dependencies, if any) into a `plugins` folder next to the KeepstoneBackup programs:
 
 ```
-C:\Program Files\Storix\plugins\Acme.Storix.dll
-C:\Program Files\Storix\plugins\Acme.Storix\Acme.Storix.dll   (a sub-folder with the same name also works)
-/opt/storix/plugins/...                                      (Linux)
+C:\Program Files\KeepstoneBackup\plugins\Acme.KeepstoneBackup.dll
+C:\Program Files\KeepstoneBackup\plugins\Acme.KeepstoneBackup\Acme.KeepstoneBackup.dll   (a sub-folder with the same name also works)
+/opt/keepstonebackup/plugins/...                                      (Linux)
 ```
 
 Restart the service. Each plugin is loaded into its own load context. Plugins run inside the service with its

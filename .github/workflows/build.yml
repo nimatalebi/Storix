@@ -17,27 +17,27 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore Storix.sln
+        run: dotnet restore KeepstoneBackup.sln
 
       - name: Build
-        run: dotnet build Storix.sln -c Release --no-restore -warnaserror
+        run: dotnet build KeepstoneBackup.sln -c Release --no-restore -warnaserror
 
       - name: Test
-        run: dotnet test Storix.sln -c Release --no-build --verbosity normal
+        run: dotnet test KeepstoneBackup.sln -c Release --no-build --verbosity normal
 
       - name: UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots
-          path: tests/NT.Storix.WinForms.Tests/bin/Release/net10.0-windows/screenshots/
+          path: tests/NT.KeepstoneBackup.WinForms.Tests/bin/Release/net10.0-windows/screenshots/
           if-no-files-found: ignore
 
   integration:
     name: Integration tests (Docker)
     runs-on: ubuntu-latest
     env:
-      STORIX_INTEGRATION_TESTS: "1"
+      KEEPSTONEBACKUP_INTEGRATION_TESTS: "1"
     steps:
       - uses: actions/checkout@v5
 
@@ -49,7 +49,7 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q rclone
 
       - name: Test
-        run: dotnet test tests/NT.Storix.IntegrationTests -c Release --verbosity normal
+        run: dotnet test tests/NT.KeepstoneBackup.IntegrationTests -c Release --verbosity normal
 
       - name: Telegram relay (Cloudflare Worker) tests
         run: node --test tools/telegram-relay/worker.test.mjs
